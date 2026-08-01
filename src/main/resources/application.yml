@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: taponsusi
+
+  profiles:
+    active: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/taponsusi
+    username: ${DB_USERNAME:taponsusi}
+    password: ${DB_PASSWORD:taponsusi}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+
+taponsusi:
+  jwt:
+    secret: ${JWT_SECRET:change-this-in-env-CHANGE-THIS-IN-ENV-1234567890}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+logging:
+  level:
+    com.taponsusi: DEBUG
+    org.hibernate.SQL: WARN
