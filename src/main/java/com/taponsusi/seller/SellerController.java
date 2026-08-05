@@ -1,6 +1,8 @@
 package com.taponsusi.seller;
 
 import com.taponsusi.common.dto.ApiResponse;
+import com.taponsusi.seller.dto.LoginRequest;
+import com.taponsusi.seller.dto.LoginResponse;
 import com.taponsusi.seller.dto.RegisterSellerRequest;
 import com.taponsusi.seller.dto.SellerResponse;
 import jakarta.validation.Valid;
@@ -26,5 +28,13 @@ public class SellerController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponse>> login(
+            @Valid @RequestBody LoginRequest request) {
+
+        LoginResponse response = sellerService.login(request);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

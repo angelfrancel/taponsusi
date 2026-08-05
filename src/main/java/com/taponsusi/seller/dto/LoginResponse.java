@@ -1,4 +1,7 @@
 package com.taponsusi.seller.dto;
 
-public class LoginResponse {
+public record LoginResponse(
+        String token,
+        SellerResponse seller
+) {
 }
