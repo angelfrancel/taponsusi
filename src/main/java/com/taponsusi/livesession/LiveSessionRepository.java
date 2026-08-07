@@ -1,4 +1,13 @@
 package com.taponsusi.livesession;
 
-public class LiveSessionRepository {
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface LiveSessionRepository extends JpaRepository<LiveSession, Long> {
+
+    List<LiveSession> findAllBySellerId(Long sellerId);
+
+    Optional<LiveSession> findByIdAndSellerId(Long id, Long sellerId);
 }
