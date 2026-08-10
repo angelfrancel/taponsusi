@@ -1,4 +1,10 @@
 package com.taponsusi.order;
 
-public class OrderStatus {
+
+public enum OrderStatus {
+    PENDING,
+    OVERDUE,
+    PAID,
+    COMPLETED,
+    CANCELLED
 }
