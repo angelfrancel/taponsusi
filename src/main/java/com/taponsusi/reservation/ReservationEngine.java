@@ -7,6 +7,7 @@ import com.taponsusi.inventory.InventoryItemRepository;
 import com.taponsusi.order.Order;
 import com.taponsusi.order.OrderRepository;
 import com.taponsusi.parser.PurchaseIntent;
+import com.taponsusi.security.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
@@ -25,6 +26,7 @@ public class ReservationEngine {
     private final IdempotencyService idempotencyService;
     private final InventoryItemRepository inventoryItemRepository;
     private final OrderRepository orderRepository;
+    private final TenantContext tenantContext;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -34,10 +36,12 @@ public class ReservationEngine {
 
     public ReservationEngine(IdempotencyService idempotencyService,
                              InventoryItemRepository inventoryItemRepository,
-                             OrderRepository orderRepository) {
+                             OrderRepository orderRepository,
+                             TenantContext tenantContext) {
         this.idempotencyService = idempotencyService;
         this.inventoryItemRepository = inventoryItemRepository;
         this.orderRepository = orderRepository;
+        this.tenantContext = tenantContext;
     }
 
 
@@ -54,6 +58,7 @@ public class ReservationEngine {
 
     @Transactional
     protected Order reserveInTransaction(PurchaseIntent intent, Long inventoryItemId) {
+        tenantContext.applyCurrentSeller(entityManager);
         applyLockTimeout();
 
         InventoryItem item = lockInventoryItem(inventoryItemId);
