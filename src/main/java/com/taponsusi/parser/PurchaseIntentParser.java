@@ -16,7 +16,7 @@ public class PurchaseIntentParser {
     // Codes are typo-sensitive by design, not smart-matched.
     private static final Pattern CODE_PATTERN = Pattern.compile("[A-Z0-9]+");
 
-    public PurchaseIntent parse(String sellerId_unused, Long sellerId, Long sessionId,
+    public PurchaseIntent parse(Long sellerId, Long sessionId,
                                 String platformUserId, String rawMessage) {
         String normalized = normalize(rawMessage);
 
