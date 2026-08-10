@@ -1,0 +1,4 @@
+package com.taponsusi.order;
+
+public class Order {
+}
