@@ -35,6 +35,9 @@ taponsusi:
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   reservation:
     lock-timeout-ms: 2000
+  facebook:
+    app-secret: ${FACEBOOK_APP_SECRET:dev-placeholder-secret-CHANGE-IN-ENV}
+    webhook-verify-token: ${FACEBOOK_WEBHOOK_VERIFY_TOKEN:dev-placeholder-token-CHANGE-IN-ENV}
 
 logging:
   level:
