@@ -1,15 +1,28 @@
 package com.taponsusi.platform.facebook;
 
+import com.taponsusi.livesession.LiveSession;
+import com.taponsusi.livesession.LiveSessionRepository;
 import com.taponsusi.parser.CommentEvent;
 import com.taponsusi.platform.facebook.dto.FacebookWebhookPayload;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 
 @Component
 public class FacebookCommentMapper {
+
+    private static final Logger log = LoggerFactory.getLogger(FacebookCommentMapper.class);
+
+    private final LiveSessionRepository liveSessionRepository;
+
+    public FacebookCommentMapper(LiveSessionRepository liveSessionRepository) {
+        this.liveSessionRepository = liveSessionRepository;
+    }
 
     public List<CommentEvent> mapToCommentEvents(FacebookWebhookPayload payload) {
         List<CommentEvent> events = new ArrayList<>();
@@ -21,25 +34,23 @@ public class FacebookCommentMapper {
         for (FacebookWebhookPayload.Entry entry : payload.entry()) {
             if (entry.changes() == null) continue;
 
+            Optional<LiveSession> session = liveSessionRepository.findByFacebookPageId(entry.id());
+            if (session.isEmpty()) {
+                log.warn("Received webhook for unlinked Facebook Page ID: {}", entry.id());
+                continue;
+            }
+
             for (FacebookWebhookPayload.Change change : entry.changes()) {
                 if (!isRelevantCommentAdd(change)) continue;
 
                 FacebookWebhookPayload.Value value = change.value();
 
-                // TODO: resolve sellerId/sessionId from entry.id (the
-                // Facebook Page ID) once Page-to-seller linkage exists.
-                // Hardcoded null is intentionally invalid — this MUST
-                // be wired before this adapter can process real events,
-                // not silently defaulted to something plausible-looking.
-                Long sellerId = null;
-                Long sessionId = null;
-
                 events.add(new CommentEvent(
                         "FACEBOOK",
                         value.commentId(),
                         value.from().id(),
-                        sellerId,
-                        sessionId,
+                        session.get().getSellerId(),
+                        session.get().getId(),
                         value.message()
                 ));
             }
