@@ -13,4 +13,8 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
 
     boolean existsBySellerIdAndSessionIdAndReservationCode(
             Long sellerId, Long sessionId, String reservationCode);
+
+    Optional<InventoryItem> findBySellerIdAndSessionIdAndReservationCode(
+            Long sellerId, Long sessionId, String reservationCode);
+
 }

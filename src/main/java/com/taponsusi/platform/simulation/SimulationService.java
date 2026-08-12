@@ -50,10 +50,8 @@ public class SimulationService {
         Long sellerId = AuthenticatedSeller.currentSellerId();
 
         InventoryItem item = inventoryItemRepository
-                .findAllBySellerIdAndSessionId(sellerId, request.sessionId())
-                .stream()
-                .filter(i -> i.getReservationCode().equals(request.inventoryCode()))
-                .findFirst()
+                .findBySellerIdAndSessionIdAndReservationCode(
+                        sellerId, request.sessionId(), request.inventoryCode())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Inventory code not found in session: " + request.inventoryCode()));
 
