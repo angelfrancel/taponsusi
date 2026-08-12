@@ -1,6 +1,7 @@
 package com.taponsusi.platform.facebook;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taponsusi.inventory.InventoryItemRepository;
 import com.taponsusi.parser.CommentEvent;
 import com.taponsusi.parser.PurchaseIntent;
 import com.taponsusi.parser.PurchaseIntentParser;
@@ -27,6 +28,7 @@ public class FacebookWebhookController {
     private final String verifyToken;
     private final FacebookSignatureVerifier signatureVerifier;
     private final FacebookCommentMapper commentMapper;
+    private final InventoryItemRepository inventoryItemRepository;
     private final PurchaseIntentParser purchaseIntentParser;
     private final ReservationEngine reservationEngine;
     private final ObjectMapper objectMapper;
@@ -37,12 +39,14 @@ public class FacebookWebhookController {
             FacebookCommentMapper commentMapper,
             PurchaseIntentParser purchaseIntentParser,
             ReservationEngine reservationEngine,
+            InventoryItemRepository inventoryItemRepository,
             ObjectMapper objectMapper) {
         this.verifyToken = verifyToken;
         this.signatureVerifier = signatureVerifier;
         this.commentMapper = commentMapper;
         this.purchaseIntentParser = purchaseIntentParser;
         this.reservationEngine = reservationEngine;
+        this.inventoryItemRepository = inventoryItemRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -84,8 +88,26 @@ public class FacebookWebhookController {
                         event.sellerId(), event.sessionId(),
                         event.platformUserId(), event.rawMessage());
 
-                log.info("Parsed valid purchase intent from Facebook comment: {} qty={}",
-                        intent.reservationCode(), intent.quantity());
+                var inventoryItem = inventoryItemRepository
+                        .findBySellerIdAndSessionIdAndReservationCode(
+                                intent.sellerId(), intent.sessionId(), intent.reservationCode())
+                        .orElse(null);
+
+                if (inventoryItem == null) {
+                    log.info("Rejected Facebook comment: no inventory item for code {} in session {}",
+                            intent.reservationCode(), intent.sessionId());
+                    continue;
+                }
+
+                var order = reservationEngine.reserve(
+                        event.platform(), event.platformEventId(), intent, inventoryItem.getId());
+
+                if (order.isPresent()) {
+                    log.info("Reservation created from Facebook comment: order {} qty={}",
+                            order.get().getId(), order.get().getQuantity());
+                } else {
+                    log.info("Duplicate Facebook webhook event ignored: {}", event.platformEventId());
+                }
 
             } catch (PurchaseIntentRejectedException e) {
                 log.info("Rejected Facebook comment ({}): {}", e.getReasonCode(), e.getMessage());
