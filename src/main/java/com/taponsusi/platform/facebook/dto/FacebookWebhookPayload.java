@@ -1,5 +1,7 @@
 package com.taponsusi.platform.facebook.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 
 
@@ -14,11 +16,11 @@ public record FacebookWebhookPayload(String object, List<Entry> entry) {
     public record Value(
             String item,
             String verb,
-            String commentId,
-            String postId,
+            @JsonProperty("comment_id") String commentId,
+            @JsonProperty("post_id") String postId,
             From from,
             String message,
-            Long createdTime
+            @JsonProperty("created_time") Long createdTime
     ) {
     }
 
