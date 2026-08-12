@@ -12,6 +12,9 @@ public class LiveSession {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "facebook_page_id")
+    private String facebookPageId;
+
     @Column(name = "seller_id", nullable = false)
     private Long sellerId;
 
@@ -59,6 +62,7 @@ public class LiveSession {
 
     public Long getId() { return id; }
     public Long getSellerId() { return sellerId; }
+    public String getFacebookPageId() { return facebookPageId; }
     public String getTitle() { return title; }
     public String getPlatform() { return platform; }
     public String getStatus() { return status; }
@@ -70,4 +74,5 @@ public class LiveSession {
     public void setStatus(String status) { this.status = status; }
     public void setStartedAt(Instant startedAt) { this.startedAt = startedAt; }
     public void setEndedAt(Instant endedAt) { this.endedAt = endedAt; }
+    public void setFacebookPageId(String facebookPageId) { this.facebookPageId = facebookPageId; }
 }

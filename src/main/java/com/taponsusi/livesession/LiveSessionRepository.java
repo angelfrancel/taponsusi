@@ -10,4 +10,6 @@ public interface LiveSessionRepository extends JpaRepository<LiveSession, Long> 
     List<LiveSession> findAllBySellerId(Long sellerId);
 
     Optional<LiveSession> findByIdAndSellerId(Long id, Long sellerId);
+
+    java.util.Optional<LiveSession> findByFacebookPageId(String facebookPageId);
 }
