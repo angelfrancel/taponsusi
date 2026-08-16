@@ -13,7 +13,7 @@ public class AuditService {
         this.auditEventRepository = auditEventRepository;
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void record(Long sellerId, String eventType, String entityType, Long entityId, String detail) {
         AuditEvent event = new AuditEvent(sellerId, eventType, entityType, entityId, detail);
         auditEventRepository.save(event);

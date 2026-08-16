@@ -1,11 +1,14 @@
 package com.taponsusi.reservation;
 
+import com.taponsusi.audit.AuditEvent;
+import com.taponsusi.audit.AuditService;
 import com.taponsusi.common.exception.ResourceNotFoundException;
 import com.taponsusi.inventory.InventoryItem;
 import com.taponsusi.inventory.InventoryItemRepository;
 import com.taponsusi.order.Order;
 import com.taponsusi.order.OrderRepository;
 import com.taponsusi.parser.PurchaseIntent;
+import com.taponsusi.reservationproof.ReservationProofService;
 import com.taponsusi.security.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -25,6 +28,7 @@ public class ReservationTransactionExecutor {
     private final InventoryItemRepository inventoryItemRepository;
     private final OrderRepository orderRepository;
     private final TenantContext tenantContext;
+    private final AuditService auditService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -34,10 +38,12 @@ public class ReservationTransactionExecutor {
 
     public ReservationTransactionExecutor(InventoryItemRepository inventoryItemRepository,
                                           OrderRepository orderRepository,
-                                          TenantContext tenantContext) {
+                                          TenantContext tenantContext,
+                                          AuditService auditService) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.orderRepository = orderRepository;
         this.tenantContext = tenantContext;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -51,6 +57,9 @@ public class ReservationTransactionExecutor {
             throw new ResourceNotFoundException("Inventory item not found: " + inventoryItemId);
         }
         if (!item.getReservationCode().equals(intent.reservationCode())) {
+            auditService.record(intent.sellerId(), "RESERVATION_REJECTED_CODE_MISMATCH",
+                    "InventoryItem", inventoryItemId,
+                    "Buyer " + intent.platformUserId() + " requested code " + intent.reservationCode());
             throw new OutOfStockException(
                     "Reservation code mismatch for item " + inventoryItemId);
         }
@@ -67,11 +76,18 @@ public class ReservationTransactionExecutor {
         int newPortionRequested = Math.max(0, cappedRequested - alreadyRequested);
 
         if (newPortionRequested == 0) {
+            auditService.record(intent.sellerId(), "MAX_QUANTITY_EXCEEDED",
+                    "InventoryItem", inventoryItemId,
+                    "Buyer " + intent.platformUserId() + " already at max_quantity_per_buyer cap");
             throw new OutOfStockException(
                     "Buyer has already reached max_quantity_per_buyer for this item");
         }
 
         if (item.getAvailableStock() <= 0) {
+            auditService.record(intent.sellerId(), "RESERVATION_REJECTED_OUT_OF_STOCK",
+                    "InventoryItem", inventoryItemId,
+                    "Buyer " + intent.platformUserId() + " requested " + intent.quantity()
+                            + ", available_stock was 0");
             throw new OutOfStockException("Item " + inventoryItemId + " is out of stock");
         }
 
@@ -83,7 +99,15 @@ public class ReservationTransactionExecutor {
                 intent.sellerId(), intent.sessionId(), inventoryItemId,
                 intent.platformUserId(), newPortionRequested, fulfilled);
 
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+
+        auditService.record(intent.sellerId(), "RESERVATION_CREATED",
+                "Order", saved.getId(),
+                "Buyer " + intent.platformUserId() + " reserved " + fulfilled
+                        + " of code " + intent.reservationCode()
+                        + (fulfilled < newPortionRequested ? " (partial fulfillment)" : ""));
+
+        return saved;
     }
 
     private InventoryItem lockInventoryItem(Long inventoryItemId) {
