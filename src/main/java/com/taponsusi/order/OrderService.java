@@ -1,6 +1,7 @@
 package com.taponsusi.order;
 
 import com.taponsusi.audit.AuditService;
+import com.taponsusi.buyerreputation.BuyerReputationService;
 import com.taponsusi.common.exception.ResourceNotFoundException;
 import com.taponsusi.inventory.InventoryItem;
 import com.taponsusi.security.AuthenticatedSeller;
@@ -18,16 +19,19 @@ public class OrderService {
     private final OrderStateMachine orderStateMachine;
     private final TenantContext tenantContext;
     private final AuditService auditService;
+    private final BuyerReputationService buyerReputationService;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     public OrderService(OrderRepository orderRepository, OrderStateMachine orderStateMachine,
-                        TenantContext tenantContext, AuditService auditService) {
+                        TenantContext tenantContext, AuditService auditService,
+                        BuyerReputationService buyerReputationService) {
         this.orderRepository = orderRepository;
         this.orderStateMachine = orderStateMachine;
         this.tenantContext = tenantContext;
         this.auditService = auditService;
+        this.buyerReputationService = buyerReputationService;
     }
 
     @Transactional
@@ -36,12 +40,6 @@ public class OrderService {
         return transitionStatusInternal(orderId, newStatus, sellerId, "SELLER_ACTION");
     }
 
-    /**
-     * Shared by the authenticated-user path (above) and the
-     * scheduler (which has no SecurityContext — see
-     * ReservationExpirationScheduler). sellerId is always passed
-     * explicitly, never re-derived from thread-local state.
-     */
     @Transactional
     public Order transitionStatusInternal(Long orderId, OrderStatus newStatus, Long sellerId, String reason) {
         tenantContext.applyCurrentSeller(entityManager, sellerId);
@@ -63,6 +61,14 @@ public class OrderService {
         }
 
         Order saved = orderRepository.save(order);
+
+        if (newStatus == OrderStatus.PAID) {
+            buyerReputationService.recordPaid(sellerId, order.getBuyerPlatformId());
+        } else if (newStatus == OrderStatus.OVERDUE) {
+            buyerReputationService.recordOverdue(sellerId, order.getBuyerPlatformId());
+        } else if (newStatus == OrderStatus.CANCELLED && reason.equals("SELLER_ACTION")) {
+            buyerReputationService.recordCancelledBySeller(sellerId, order.getBuyerPlatformId());
+        }
 
         auditService.record(sellerId, "ORDER_STATUS_CHANGED", "Order", orderId,
                 oldStatus + " -> " + newStatus + " (" + reason + ")");

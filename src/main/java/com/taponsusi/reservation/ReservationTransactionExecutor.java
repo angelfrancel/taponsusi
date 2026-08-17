@@ -2,6 +2,7 @@ package com.taponsusi.reservation;
 
 import com.taponsusi.audit.AuditEvent;
 import com.taponsusi.audit.AuditService;
+import com.taponsusi.buyerreputation.BuyerReputationService;
 import com.taponsusi.common.exception.ResourceNotFoundException;
 import com.taponsusi.inventory.InventoryItem;
 import com.taponsusi.inventory.InventoryItemRepository;
@@ -30,6 +31,7 @@ public class ReservationTransactionExecutor {
     private final TenantContext tenantContext;
     private final AuditService auditService;
     private final ReservationProofService reservationProofService;
+    private final BuyerReputationService buyerReputationService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -43,12 +45,13 @@ public class ReservationTransactionExecutor {
     public ReservationTransactionExecutor(InventoryItemRepository inventoryItemRepository,
                                           OrderRepository orderRepository,
                                           TenantContext tenantContext,
-                                          AuditService auditService, ReservationProofService reservationProofService) {
+                                          AuditService auditService, ReservationProofService reservationProofService, BuyerReputationService buyerReputationService) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.orderRepository = orderRepository;
         this.tenantContext = tenantContext;
         this.auditService = auditService;
         this.reservationProofService = reservationProofService;
+        this.buyerReputationService = buyerReputationService;
     }
 
     @Transactional
