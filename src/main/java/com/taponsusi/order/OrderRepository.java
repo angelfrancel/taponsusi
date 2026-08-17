@@ -8,4 +8,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findAllBySellerIdAndInventoryItemIdAndBuyerPlatformId(
             Long sellerId, Long inventoryItemId, String buyerPlatformId);
+
+    java.util.List<Order> findAllBySellerIdAndStatusAndExpiresAtBefore(
+            Long sellerId, OrderStatus status, java.time.Instant threshold);
+
+    java.util.List<Order> findAllBySellerIdAndStatusAndOverdueSinceBefore(
+            Long sellerId, OrderStatus status, java.time.Instant threshold);
 }
