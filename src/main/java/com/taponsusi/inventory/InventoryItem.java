@@ -74,4 +74,5 @@ public class InventoryItem {
     public Integer getMaxQuantityPerBuyer() { return maxQuantityPerBuyer; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public void setAvailableStock(Integer availableStock) { this.availableStock = availableStock; }
 }

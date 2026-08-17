@@ -39,6 +39,12 @@ public class Order {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
+    @Column(name = "overdue_since")
+    private Instant overdueSince;
+
     protected Order() {
     }
 
@@ -74,4 +80,8 @@ public class Order {
     public OrderStatus getStatus() { return status; }
     public Instant getCreatedAt() { return createdAt; }
     public void setStatus(OrderStatus status) { this.status = status; }
+    public Instant getExpiresAt() { return expiresAt; }
+    public Instant getOverdueSince() { return overdueSince; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
+    public void setOverdueSince(Instant overdueSince) { this.overdueSince = overdueSince; }
 }

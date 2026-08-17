@@ -37,6 +37,9 @@ public class ReservationTransactionExecutor {
     @Value("${taponsusi.reservation.lock-timeout-ms}")
     private long lockTimeoutMs;
 
+    @Value("${taponsusi.reservation.window-minutes}")
+    private long windowMinutes;
+
     public ReservationTransactionExecutor(InventoryItemRepository inventoryItemRepository,
                                           OrderRepository orderRepository,
                                           TenantContext tenantContext,
@@ -103,6 +106,8 @@ public class ReservationTransactionExecutor {
 
         Order saved = orderRepository.save(order);
         reservationProofService.generateProof(saved);
+        saved.setExpiresAt(saved.getCreatedAt().plus(windowMinutes, java.time.temporal.ChronoUnit.MINUTES));
+        saved = orderRepository.save(saved);
 
         auditService.record(intent.sellerId(), "RESERVATION_CREATED",
                 "Order", saved.getId(),

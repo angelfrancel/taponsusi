@@ -43,3 +43,8 @@ logging:
   level:
     com.taponsusi: DEBUG
     org.hibernate.SQL: WARN
+
+reservation:
+  lock-timeout-ms: 2000
+  window-minutes: 60
+  safety-net-hours: 24
