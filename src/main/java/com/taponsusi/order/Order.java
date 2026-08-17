@@ -73,4 +73,5 @@ public class Order {
     public Integer getQuantity() { return quantity; }
     public OrderStatus getStatus() { return status; }
     public Instant getCreatedAt() { return createdAt; }
+    public void setStatus(OrderStatus status) { this.status = status; }
 }
