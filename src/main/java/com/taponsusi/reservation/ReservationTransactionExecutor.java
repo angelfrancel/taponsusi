@@ -29,6 +29,7 @@ public class ReservationTransactionExecutor {
     private final OrderRepository orderRepository;
     private final TenantContext tenantContext;
     private final AuditService auditService;
+    private final ReservationProofService reservationProofService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -39,11 +40,12 @@ public class ReservationTransactionExecutor {
     public ReservationTransactionExecutor(InventoryItemRepository inventoryItemRepository,
                                           OrderRepository orderRepository,
                                           TenantContext tenantContext,
-                                          AuditService auditService) {
+                                          AuditService auditService, ReservationProofService reservationProofService) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.orderRepository = orderRepository;
         this.tenantContext = tenantContext;
         this.auditService = auditService;
+        this.reservationProofService = reservationProofService;
     }
 
     @Transactional
@@ -100,6 +102,7 @@ public class ReservationTransactionExecutor {
                 intent.platformUserId(), newPortionRequested, fulfilled);
 
         Order saved = orderRepository.save(order);
+        reservationProofService.generateProof(saved);
 
         auditService.record(intent.sellerId(), "RESERVATION_CREATED",
                 "Order", saved.getId(),

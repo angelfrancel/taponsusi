@@ -1,4 +1,10 @@
 package com.taponsusi.reservationproof;
 
-public class ReservationProofRepository {
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface ReservationProofRepository extends JpaRepository<ReservationProof, Long> {
+
+    Optional<ReservationProof> findTopBySellerIdOrderBySequenceNumberDesc(Long sellerId);
 }
