@@ -49,4 +49,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("INTERNAL_ERROR", "Something went wrong. Please try again."));
     }
+
+    @ExceptionHandler(com.taponsusi.order.InvalidOrderTransitionException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidTransition(
+            com.taponsusi.order.InvalidOrderTransitionException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("INVALID_ORDER_TRANSITION", ex.getMessage()));
+    }
 }
