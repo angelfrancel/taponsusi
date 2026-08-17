@@ -14,4 +14,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     java.util.List<Order> findAllBySellerIdAndStatusAndOverdueSinceBefore(
             Long sellerId, OrderStatus status, java.time.Instant threshold);
+
+    java.util.List<Order> findAllBySellerIdAndInventoryItemId(Long sellerId, Long inventoryItemId);
 }
