@@ -33,8 +33,9 @@ This is not a storefront — there's no product browsing, checkout, or payment p
 - **Database-enforced idempotency** (`UNIQUE` constraint + `ON CONFLICT`) makes Meta's webhook retries (guaranteed for up to 36 hours) harmless by construction, not by hope.
 - **Platform-independent core:** the Reservation Engine only ever sees a generic `CommentEvent` — it has no idea whether it came from Facebook, TikTok, or the built-in Simulation Engine.
 - **Row-Level Security (Postgres, database-enforced)** guarantees strict multi-tenant isolation independent of application code correctness.
-
-Hash-chained Reservation Proofs, Proof Tokens, buyer reputation, and Invoice-on-Demand are planned for later phases.
+- **Hash-chained Reservation Proofs** give sellers a tamper-evident, cryptographic record of *server lock-acquisition order* for every reservation.
+- **Append-only audit trail** records every reservation outcome (created, rejected, expired, cancelled) with full context.
+- **Buyer reputation tracking**, scoped per-seller, with a `BLOCKED` flag that rejects a buyer's purchase intent before it ever reaches the Reservation Engine.
 
 ## Objectives
 
@@ -88,7 +89,7 @@ Tracked against the phased roadmap.
 - [x] Phase 1 — Foundation (auth, multi-tenant core, Row-Level Security) — verified via automated cross-tenant isolation test
 - [x] Phase 2 — Reservation Engine core (locking, parsing, simulation, Facebook adapter)
     - App Review not yet submitted — pending real Dev Mode validation against a live Facebook Page
-- [ ] Phase 3 — Reliability (proof chain, audit trail, expiration, buyer reputation, concurrency test suite)
+- [x] Phase 3 — Reliability (proof chain, audit trail, expiration, buyer reputation, concurrency test suite)
 - [ ] Phase 4 — Dashboard, invoice-on-demand, proof tokens, metrics, final write-up
 
 ## Explicitly Out of Scope
