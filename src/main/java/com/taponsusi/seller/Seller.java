@@ -26,6 +26,15 @@ public class Seller {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
+    @Column(name = "verification_token")
+    private String verificationToken;
+
+    @Column(name = "verification_token_expires_at")
+    private Instant verificationTokenExpiresAt;
+
     protected Seller() {
         // required by JPA — never called directly in our own code
     }
@@ -56,4 +65,11 @@ public class Seller {
 
     public void setBusinessName(String businessName) { this.businessName = businessName; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public String getVerificationToken() { return verificationToken; }
+    public Instant getVerificationTokenExpiresAt() { return verificationTokenExpiresAt; }
+
+    public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
+    public void setVerificationToken(String verificationToken) { this.verificationToken = verificationToken; }
+    public void setVerificationTokenExpiresAt(Instant expiresAt) { this.verificationTokenExpiresAt = expiresAt; }
 }
