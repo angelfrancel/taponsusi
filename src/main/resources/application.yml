@@ -40,6 +40,9 @@ taponsusi:
   facebook:
     app-secret: ${FACEBOOK_APP_SECRET:dev-placeholder-secret-CHANGE-IN-ENV}
     webhook-verify-token: ${FACEBOOK_WEBHOOK_VERIFY_TOKEN:dev-placeholder-token-CHANGE-IN-ENV}
+  email:
+    sendgrid-api-key: ${SENDGRID_API_KEY:dev-placeholder-sendgrid-key-CHANGE-IN-ENV}
+    from-address: ${EMAIL_FROM_ADDRESS:noreply@taponsusi.dev}
 
 logging:
   level:
