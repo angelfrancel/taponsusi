@@ -37,4 +37,10 @@ public class SellerController {
         LoginResponse response = sellerService.login(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @GetMapping("/verify")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(@RequestParam String token) {
+        sellerService.verifyEmail(token);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }
