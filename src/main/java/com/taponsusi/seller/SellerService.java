@@ -19,12 +19,14 @@ public class SellerService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
-    public SellerService(SellerRepository sellerRepository, PasswordEncoder passwordEncoder, JwtService jwtService, EmailService emailService) {
+    public SellerService(SellerRepository sellerRepository, PasswordEncoder passwordEncoder, JwtService jwtService, EmailService emailService, PasswordResetTokenRepository passwordResetTokenRepository) {
         this.sellerRepository = sellerRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailService = emailService;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
     }
 
     @Transactional
@@ -64,6 +66,45 @@ public class SellerService {
         seller.setVerificationToken(null);
         seller.setVerificationTokenExpiresAt(null);
         sellerRepository.save(seller);
+    }
+
+    @Transactional
+    public void forgotPassword(String email) {
+        // Always succeeds from the caller's perspective, whether or not
+        // the email exists — never reveal which emails are registered.
+        sellerRepository.findByEmail(email).ifPresent(seller -> {
+            String token = java.util.UUID.randomUUID().toString();
+            PasswordResetToken resetToken = new PasswordResetToken(
+                    seller.getId(), token, java.time.Instant.now().plus(1, java.time.temporal.ChronoUnit.HOURS));
+            passwordResetTokenRepository.save(resetToken);
+
+            emailService.send(seller.getEmail(), "Reset your TaponSusi password",
+                    "Click to reset your password: http://localhost:5173/reset-password?token=" + token
+                            + "\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.");
+        });
+    }
+
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
+                .orElseThrow(() -> new com.taponsusi.common.exception.ResourceNotFoundException(
+                        "Invalid or already-used reset token"));
+
+        if (resetToken.isUsed()) {
+            throw new IllegalStateException("This reset link has already been used");
+        }
+        if (resetToken.getExpiresAt().isBefore(java.time.Instant.now())) {
+            throw new IllegalStateException("Reset link has expired");
+        }
+
+        Seller seller = sellerRepository.findById(resetToken.getSellerId())
+                .orElseThrow(() -> new com.taponsusi.common.exception.ResourceNotFoundException("Seller not found"));
+
+        seller.setPasswordHash(passwordEncoder.encode(newPassword));
+        sellerRepository.save(seller);
+
+        resetToken.markUsed();
+        passwordResetTokenRepository.save(resetToken);
     }
 
     public LoginResponse login(LoginRequest request) {

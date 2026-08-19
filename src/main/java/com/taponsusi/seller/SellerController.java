@@ -1,10 +1,7 @@
 package com.taponsusi.seller;
 
 import com.taponsusi.common.dto.ApiResponse;
-import com.taponsusi.seller.dto.LoginRequest;
-import com.taponsusi.seller.dto.LoginResponse;
-import com.taponsusi.seller.dto.RegisterSellerRequest;
-import com.taponsusi.seller.dto.SellerResponse;
+import com.taponsusi.seller.dto.*;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +38,20 @@ public class SellerController {
     @GetMapping("/verify")
     public ResponseEntity<ApiResponse<Void>> verifyEmail(@RequestParam String token) {
         sellerService.verifyEmail(token);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        sellerService.forgotPassword(request.email());
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        sellerService.resetPassword(request.token(), request.newPassword());
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

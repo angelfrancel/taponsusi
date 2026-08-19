@@ -29,7 +29,9 @@ public class SecurityConfig {
                                 "/api/v1/sellers/register",
                                 "/api/v1/sellers/login",
                                 "/api/v1/webhooks/facebook",
-                                "/api/v1/sellers/verify"
+                                "/api/v1/sellers/verify",
+                                "/api/v1/sellers/forgot-password",
+                                "/api/v1/sellers/reset-password"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
