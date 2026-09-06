@@ -30,6 +30,9 @@ public class ReservationProof {
     @Column(nullable = false)
     private String hash;
 
+    @Column(name = "proof_token")
+    private String proofToken;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -37,13 +40,17 @@ public class ReservationProof {
     }
 
     public ReservationProof(Long sellerId, Long orderId, Long sequenceNumber,
-                            String proofData, String previousHash, String hash) {
+                            String proofData, String previousHash, String hash, String proofToken) {
         this.sellerId = sellerId;
         this.orderId = orderId;
         this.sequenceNumber = sequenceNumber;
         this.proofData = proofData;
         this.previousHash = previousHash;
         this.hash = hash;
+        this.proofToken = proofToken;
+    }
+
+    public ReservationProof(Long sellerId, Long id, long nextSequence, String proofData, String previousHash, String hash) {
     }
 
     @PrePersist
@@ -58,5 +65,6 @@ public class ReservationProof {
     public String getProofData() { return proofData; }
     public String getPreviousHash() { return previousHash; }
     public String getHash() { return hash; }
+    public String getProofToken() { return proofToken; }
     public Instant getCreatedAt() { return createdAt; }
 }

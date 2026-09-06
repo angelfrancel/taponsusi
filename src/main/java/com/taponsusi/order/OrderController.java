@@ -3,6 +3,9 @@ package com.taponsusi.order;
 import com.taponsusi.common.dto.ApiResponse;
 import com.taponsusi.order.dto.OrderResponse;
 import com.taponsusi.order.dto.UpdateOrderStatusRequest;
+import com.taponsusi.reservationproof.ReservationProofService;
+import com.taponsusi.reservationproof.dto.ReservationProofResponse;
+import com.taponsusi.security.AuthenticatedSeller;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,9 +15,11 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+    private final ReservationProofService reservationProofService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, ReservationProofService reservationProofService) {
         this.orderService = orderService;
+        this.reservationProofService = reservationProofService;
     }
 
     @PatchMapping("/{id}/status")
@@ -24,5 +29,12 @@ public class OrderController {
 
         Order updated = orderService.transitionStatus(id, request.status());
         return ResponseEntity.ok(ApiResponse.success(OrderResponse.from(updated)));
+    }
+
+    @GetMapping("/{id}/proof")
+    public ResponseEntity<ApiResponse<ReservationProofResponse>> getProof(@PathVariable Long id) {
+        Long sellerId = AuthenticatedSeller.currentSellerId();
+        ReservationProofResponse response = reservationProofService.getProofForOrder(sellerId, id);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
