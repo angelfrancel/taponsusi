@@ -2,6 +2,7 @@ package com.taponsusi.platform.facebook;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taponsusi.inventory.InventoryItemRepository;
+import com.taponsusi.messaging.InvoiceRequestHandler;
 import com.taponsusi.parser.CommentEvent;
 import com.taponsusi.parser.PurchaseIntent;
 import com.taponsusi.parser.PurchaseIntentParser;
@@ -18,12 +19,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-
 @RestController
 @RequestMapping("/api/v1/webhooks/facebook")
 public class FacebookWebhookController {
 
-    private static final Logger log = LoggerFactory.getLogger(FacebookWebhookController.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(FacebookWebhookController.class);
 
     private final String verifyToken;
     private final FacebookSignatureVerifier signatureVerifier;
@@ -32,6 +33,7 @@ public class FacebookWebhookController {
     private final PurchaseIntentParser purchaseIntentParser;
     private final ReservationEngine reservationEngine;
     private final ObjectMapper objectMapper;
+    private final InvoiceRequestHandler invoiceRequestHandler;
 
     public FacebookWebhookController(
             @Value("${taponsusi.facebook.webhook-verify-token}") String verifyToken,
@@ -40,7 +42,9 @@ public class FacebookWebhookController {
             PurchaseIntentParser purchaseIntentParser,
             ReservationEngine reservationEngine,
             InventoryItemRepository inventoryItemRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            InvoiceRequestHandler invoiceRequestHandler) {
+
         this.verifyToken = verifyToken;
         this.signatureVerifier = signatureVerifier;
         this.commentMapper = commentMapper;
@@ -48,6 +52,7 @@ public class FacebookWebhookController {
         this.reservationEngine = reservationEngine;
         this.inventoryItemRepository = inventoryItemRepository;
         this.objectMapper = objectMapper;
+        this.invoiceRequestHandler = invoiceRequestHandler;
     }
 
     @GetMapping
@@ -59,12 +64,18 @@ public class FacebookWebhookController {
         if ("subscribe".equals(mode) && verifyToken.equals(token)) {
             return ResponseEntity.ok(challenge);
         }
-        return ResponseEntity.status(403).body("Verification token mismatch");
+
+        return ResponseEntity
+                .status(403)
+                .body("Verification token mismatch");
     }
 
     @PostMapping
     public ResponseEntity<Void> receive(
-            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signatureHeader,
+            @RequestHeader(
+                    value = "X-Hub-Signature-256",
+                    required = false
+            ) String signatureHeader,
             @RequestBody String rawBody) {
 
         if (!signatureVerifier.isValid(rawBody, signatureHeader)) {
@@ -73,51 +84,105 @@ public class FacebookWebhookController {
         }
 
         FacebookWebhookPayload payload;
+
         try {
-            payload = objectMapper.readValue(rawBody, FacebookWebhookPayload.class);
+            payload = objectMapper.readValue(
+                    rawBody,
+                    FacebookWebhookPayload.class
+            );
         } catch (Exception e) {
             log.error("Failed to parse Facebook webhook payload", e);
             return ResponseEntity.ok().build();
         }
 
-        List<CommentEvent> events = commentMapper.mapToCommentEvents(payload);
+        List<CommentEvent> events =
+                commentMapper.mapToCommentEvents(payload);
 
         for (CommentEvent event : events) {
-            try {
-                PurchaseIntent intent = purchaseIntentParser.parse(
-                        event.sellerId(), event.sessionId(),
-                        event.platformUserId(), event.rawMessage());
-
-                var inventoryItem = inventoryItemRepository
-                        .findBySellerIdAndSessionIdAndReservationCode(
-                                intent.sellerId(), intent.sessionId(), intent.reservationCode())
-                        .orElse(null);
-
-                if (inventoryItem == null) {
-                    log.info("Rejected Facebook comment: no inventory item for code {} in session {}",
-                            intent.reservationCode(), intent.sessionId());
-                    continue;
-                }
-
-                var order = reservationEngine.reserve(
-                        event.platform(), event.platformEventId(), intent, inventoryItem.getId());
-
-                if (order.isPresent()) {
-                    log.info("Reservation created from Facebook comment: order {} qty={}",
-                            order.get().getId(), order.get().getQuantity());
-                } else {
-                    log.info("Duplicate Facebook webhook event ignored: {}", event.platformEventId());
-                }
-
-            } catch (PurchaseIntentRejectedException e) {
-                log.info("Rejected Facebook comment ({}): {}", e.getReasonCode(), e.getMessage());
-            } catch (OutOfStockException | ReservationContendedException e) {
-                log.info("Reservation not fulfilled: {}", e.getMessage());
-            } catch (Exception e) {
-                log.error("Unexpected error processing Facebook comment event", e);
-            }
+            processCommentEvent(event);
         }
 
         return ResponseEntity.ok().build();
+    }
+
+    private void processCommentEvent(CommentEvent event) {
+        try {
+            String normalizedMessage = normalize(event.rawMessage());
+
+            if (invoiceRequestHandler.isInvoiceRequest(normalizedMessage)) {
+                invoiceRequestHandler.handle(
+                        event.platform(),
+                        event.sellerId(),
+                        event.sessionId(),
+                        event.platformUserId()
+                );
+                return;
+            }
+
+            PurchaseIntent intent = purchaseIntentParser.parse(
+                    event.sellerId(),
+                    event.sessionId(),
+                    event.platformUserId(),
+                    event.rawMessage()
+            );
+
+            var inventoryItem = inventoryItemRepository
+                    .findBySellerIdAndSessionIdAndReservationCode(
+                            intent.sellerId(),
+                            intent.sessionId(),
+                            intent.reservationCode()
+                    )
+                    .orElse(null);
+
+            if (inventoryItem == null) {
+                log.info(
+                        "Rejected Facebook comment: no inventory item " +
+                                "for code {} in session {}",
+                        intent.reservationCode(),
+                        intent.sessionId()
+                );
+                return;
+            }
+
+            var order = reservationEngine.reserve(
+                    event.platform(),
+                    event.platformEventId(),
+                    intent,
+                    inventoryItem.getId()
+            );
+
+            if (order.isPresent()) {
+                log.info(
+                        "Reservation created from Facebook comment: order {} qty={}",
+                        order.get().getId(),
+                        order.get().getQuantity()
+                );
+            } else {
+                log.info(
+                        "Duplicate Facebook webhook event ignored: {}",
+                        event.platformEventId()
+                );
+            }
+
+        } catch (PurchaseIntentRejectedException e) {
+            log.info(
+                    "Rejected Facebook comment ({}): {}",
+                    e.getReasonCode(),
+                    e.getMessage()
+            );
+        } catch (OutOfStockException | ReservationContendedException e) {
+            log.info("Reservation not fulfilled: {}", e.getMessage());
+        } catch (Exception e) {
+            log.error(
+                    "Unexpected error processing Facebook comment event",
+                    e
+            );
+        }
+    }
+
+    private String normalize(String raw) {
+        return raw == null
+                ? ""
+                : raw.trim().toUpperCase().replaceAll("\\s+", " ");
     }
 }
