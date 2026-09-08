@@ -3,6 +3,7 @@ package com.taponsusi.order;
 import com.taponsusi.audit.AuditService;
 import com.taponsusi.seller.Seller;
 import com.taponsusi.seller.SellerRepository;
+import com.taponsusi.websocket.ReservationEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,7 @@ public class ReservationExpirationScheduler {
     private final OrderRepository orderRepository;
     private final OrderService orderService;
     private final AuditService auditService;
+    private final ReservationEventPublisher reservationEventPublisher;
 
     @Value("${taponsusi.reservation.safety-net-hours}")
     private long safetyNetHours;
@@ -30,11 +32,13 @@ public class ReservationExpirationScheduler {
     public ReservationExpirationScheduler(SellerRepository sellerRepository,
                                           OrderRepository orderRepository,
                                           OrderService orderService,
-                                          AuditService auditService) {
+                                          AuditService auditService,
+                                          ReservationEventPublisher reservationEventPublisher) {
         this.sellerRepository = sellerRepository;
         this.orderRepository = orderRepository;
         this.orderService = orderService;
         this.auditService = auditService;
+        this.reservationEventPublisher = reservationEventPublisher;
     }
 
     @Scheduled(fixedDelayString = "300000")
@@ -58,8 +62,9 @@ public class ReservationExpirationScheduler {
                 sellerId, OrderStatus.PENDING, Instant.now());
 
         for (Order order : pastDue) {
-            orderService.transitionStatusInternal(
+            Order updated = orderService.transitionStatusInternal(
                     order.getId(), OrderStatus.OVERDUE, sellerId, "EXPIRATION_SCHEDULER");
+            reservationEventPublisher.publishOrderUpdated(updated);
         }
     }
 
@@ -70,8 +75,9 @@ public class ReservationExpirationScheduler {
                 sellerId, OrderStatus.OVERDUE, safetyNetThreshold);
 
         for (Order order : pastSafetyNet) {
-            orderService.transitionStatusInternal(
+            Order updated = orderService.transitionStatusInternal(
                     order.getId(), OrderStatus.CANCELLED, sellerId, "AUTO_RELEASED_STALE_NO_RESPONSE");
+            reservationEventPublisher.publishOrderUpdated(updated);
 
             log.warn("AUTO_RELEASED_STALE_NO_RESPONSE: order {} for seller {} auto-cancelled "
                             + "after {} hours overdue with no seller action",

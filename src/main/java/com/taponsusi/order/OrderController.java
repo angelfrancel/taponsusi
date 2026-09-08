@@ -6,6 +6,7 @@ import com.taponsusi.order.dto.UpdateOrderStatusRequest;
 import com.taponsusi.reservationproof.ReservationProofService;
 import com.taponsusi.reservationproof.dto.ReservationProofResponse;
 import com.taponsusi.security.AuthenticatedSeller;
+import com.taponsusi.websocket.ReservationEventPublisher;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,10 +17,14 @@ public class OrderController {
 
     private final OrderService orderService;
     private final ReservationProofService reservationProofService;
+    private final ReservationEventPublisher reservationEventPublisher;
 
-    public OrderController(OrderService orderService, ReservationProofService reservationProofService) {
+    public OrderController(OrderService orderService,
+                           ReservationProofService reservationProofService,
+                           ReservationEventPublisher reservationEventPublisher) {
         this.orderService = orderService;
         this.reservationProofService = reservationProofService;
+        this.reservationEventPublisher = reservationEventPublisher;
     }
 
     @PatchMapping("/{id}/status")
@@ -28,6 +33,7 @@ public class OrderController {
             @Valid @RequestBody UpdateOrderStatusRequest request) {
 
         Order updated = orderService.transitionStatus(id, request.status());
+        reservationEventPublisher.publishOrderUpdated(updated);
         return ResponseEntity.ok(ApiResponse.success(OrderResponse.from(updated)));
     }
 

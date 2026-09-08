@@ -4,6 +4,7 @@ import com.taponsusi.buyerreputation.BuyerReputationService;
 import com.taponsusi.common.idempotency.IdempotencyService;
 import com.taponsusi.order.Order;
 import com.taponsusi.parser.PurchaseIntent;
+import com.taponsusi.websocket.ReservationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -15,12 +16,16 @@ public class ReservationEngine {
     private final IdempotencyService idempotencyService;
     private final ReservationTransactionExecutor transactionExecutor;
     private final BuyerReputationService buyerReputationService;
+    private final ReservationEventPublisher reservationEventPublisher;
 
     public ReservationEngine(IdempotencyService idempotencyService,
-                             ReservationTransactionExecutor transactionExecutor, BuyerReputationService buyerReputationService) {
+                             ReservationTransactionExecutor transactionExecutor,
+                             BuyerReputationService buyerReputationService,
+                             ReservationEventPublisher reservationEventPublisher) {
         this.idempotencyService = idempotencyService;
         this.transactionExecutor = transactionExecutor;
         this.buyerReputationService = buyerReputationService;
+        this.reservationEventPublisher = reservationEventPublisher;
     }
 
     public Optional<Order> reserve(String platform, String platformEventId,
@@ -30,16 +35,15 @@ public class ReservationEngine {
             return Optional.empty();
         }
 
-        if (buyerReputationService.isBlocked(intent.sellerId(), intent.platformUserId())) {
-            return Optional.empty(); // silently ignored, same as a duplicate — Section 8 doesn't
-            // specify a distinct rejection signal for blocked buyers
-        }
-
         boolean isNew = idempotencyService.isNewEvent(platform, platformEventId);
         if (!isNew) {
             return Optional.empty();
         }
 
-        return Optional.of(transactionExecutor.execute(intent, inventoryItemId));
+        // execute() is @Transactional on a different bean — by the time
+        // it returns here, the transaction has committed. Safe to push.
+        Order order = transactionExecutor.execute(intent, inventoryItemId);
+        reservationEventPublisher.publishReservationCreated(order);
+        return Optional.of(order);
     }
 }
