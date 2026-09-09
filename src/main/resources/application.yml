@@ -43,6 +43,7 @@ taponsusi:
   email:
     sendgrid-api-key: ${SENDGRID_API_KEY:dev-placeholder-sendgrid-key-CHANGE-IN-ENV}
     from-address: ${EMAIL_FROM_ADDRESS:noreply@taponsusi.dev}
+    log-links-for-dev: ${EMAIL_LOG_LINKS_FOR_DEV:true}
 
 logging:
   level:

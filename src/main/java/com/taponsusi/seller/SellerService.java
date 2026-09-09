@@ -11,6 +11,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class SellerService {
@@ -20,6 +23,11 @@ public class SellerService {
     private final JwtService jwtService;
     private final EmailService emailService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+
+    private static final Logger log = LoggerFactory.getLogger(SellerService.class);
+
+    @Value("${taponsusi.email.log-links-for-dev}")
+    private boolean logLinksForDev;
 
     public SellerService(SellerRepository sellerRepository, PasswordEncoder passwordEncoder, JwtService jwtService, EmailService emailService, PasswordResetTokenRepository passwordResetTokenRepository) {
         this.sellerRepository = sellerRepository;
@@ -44,10 +52,14 @@ public class SellerService {
 
         Seller saved = sellerRepository.save(seller);
 
+        String verificationLink = "http://localhost:5173/verify?token=" + saved.getVerificationToken();
+
+        if (logLinksForDev) {
+            log.info("[DEV] Verification link for {}: {}", saved.getEmail(), verificationLink);
+        }
+
         emailService.send(saved.getEmail(), "Verify your TaponSusi account",
-                "Click to verify your email: http://localhost:5173/verify?token="
-                        + saved.getVerificationToken()
-                        + "\n\nThis link expires in 24 hours.");
+                "Click to verify your email: " + verificationLink + "\n\nThis link expires in 24 hours.");
 
         return SellerResponse.from(saved);
     }
@@ -113,6 +125,10 @@ public class SellerService {
 
         if (!passwordEncoder.matches(request.password(), seller.getPasswordHash())) {
             throw new BadCredentialsException("Invalid email or password");
+        }
+
+        if (!seller.isEmailVerified()) {
+            throw new EmailNotVerifiedException("Please verify your email before logging in");
         }
 
         String token = jwtService.generateToken(seller.getId(), seller.getEmail());

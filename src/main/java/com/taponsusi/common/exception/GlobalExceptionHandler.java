@@ -56,4 +56,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("INVALID_ORDER_TRANSITION", ex.getMessage()));
     }
+
+    @ExceptionHandler(com.taponsusi.seller.EmailNotVerifiedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEmailNotVerified(com.taponsusi.seller.EmailNotVerifiedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("EMAIL_NOT_VERIFIED", ex.getMessage()));
+    }
 }
