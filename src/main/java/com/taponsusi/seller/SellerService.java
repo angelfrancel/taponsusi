@@ -54,12 +54,14 @@ public class SellerService {
 
         String verificationLink = "http://localhost:5173/verify?token=" + saved.getVerificationToken();
 
-        if (logLinksForDev) {
-            log.info("[DEV] Verification link for {}: {}", saved.getEmail(), verificationLink);
-        }
-
         emailService.send(saved.getEmail(), "Verify your TaponSusi account",
-                "Click to verify your email: " + verificationLink + "\n\nThis link expires in 24 hours.");
+                "Hi,\n\n"
+                        + "Thanks for creating a TaponSusi account. Please confirm this is your "
+                        + "email address by clicking the link below:\n\n"
+                        + verificationLink + "\n\n"
+                        + "This link expires in 24 hours. If you didn't create this account, "
+                        + "you can safely ignore this email.\n\n"
+                        + "— TaponSusi");
 
         return SellerResponse.from(saved);
     }
@@ -90,9 +92,16 @@ public class SellerService {
                     seller.getId(), token, java.time.Instant.now().plus(1, java.time.temporal.ChronoUnit.HOURS));
             passwordResetTokenRepository.save(resetToken);
 
+            String resetLink = "http://localhost:5173/reset-password?token=" + token;
+
             emailService.send(seller.getEmail(), "Reset your TaponSusi password",
-                    "Click to reset your password: http://localhost:5173/reset-password?token=" + token
-                            + "\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.");
+                    "Hi,\n\n"
+                            + "We received a request to reset your TaponSusi account password. "
+                            + "Click the link below to choose a new one:\n\n"
+                            + resetLink + "\n\n"
+                            + "This link expires in 1 hour. If you didn't request this, you can "
+                            + "safely ignore this email — your password will stay unchanged.\n\n"
+                            + "— TaponSusi");
         });
     }
 
