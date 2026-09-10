@@ -19,10 +19,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -56,6 +59,11 @@ class ConcurrencyTest {
                 seller.getId(), session.getId(), "TESTCODE", 500);
 
         ExecutorService executor = Executors.newFixedThreadPool(50);
+        AtomicInteger successfulReservations = new AtomicInteger();
+        AtomicInteger outOfStockRejections = new AtomicInteger();
+        AtomicInteger contentionRejections = new AtomicInteger();
+        AtomicInteger duplicateResults = new AtomicInteger();
+        ConcurrentLinkedQueue<Throwable> unexpectedFailures = new ConcurrentLinkedQueue<>();
 
         List<Callable<Void>> tasks = events.stream()
                 .<Callable<Void>>map(event -> () -> {
@@ -63,12 +71,20 @@ class ConcurrencyTest {
                         PurchaseIntent intent = purchaseIntentParser.parse(
                                 event.sellerId(), event.sessionId(),
                                 event.platformUserId(), event.rawMessage());
-                        reservationEngine.reserve(
+                        Optional<Order> result = reservationEngine.reserve(
                                 event.platform(), event.platformEventId(), intent, item.getId());
-                    } catch (Exception ignored) {
-                        // Rejections are expected outcomes for 499 of these,
-                        // not test failures — the assertions below check the
-                        // resulting DB state, not that every call "succeeded."
+
+                        if (result.isPresent()) {
+                            successfulReservations.incrementAndGet();
+                        } else {
+                            duplicateResults.incrementAndGet();
+                        }
+                    } catch (OutOfStockException e) {
+                        outOfStockRejections.incrementAndGet();
+                    } catch (ReservationContendedException e) {
+                        contentionRejections.incrementAndGet();
+                    } catch (Throwable unexpected) {
+                        unexpectedFailures.add(unexpected);
                     }
                     return null;
                 })
@@ -80,12 +96,8 @@ class ConcurrencyTest {
         for (Future<Void> future : futures) {
             try {
                 future.get();
-            } catch (Exception ignored) {
-                // Same reasoning — a task throwing is an expected rejection,
-                // not a test infrastructure failure, as long as it's one of
-                // our known exception types. A genuinely unexpected Throwable
-                // would still surface via the assertions below (e.g. more
-                // than 1 order created, or negative stock).
+            } catch (Exception unexpected) {
+                unexpectedFailures.add(unexpected);
             }
         }
 
@@ -95,24 +107,39 @@ class ConcurrencyTest {
 
         InventoryItem finalItem = inventoryItemRepository.findById(item.getId()).orElseThrow();
 
-        // The core claim
+        assertThat(unexpectedFailures)
+                .as("No simulation task should fail with an unexpected exception")
+                .isEmpty();
+
+        assertThat(successfulReservations.get()).isEqualTo(1);
+        assertThat(duplicateResults.get()).isZero();
+        assertThat(successfulReservations.get()
+                + outOfStockRejections.get()
+                + contentionRejections.get()
+                + duplicateResults.get()).isEqualTo(500);
+
         assertThat(orders).hasSize(1);
         assertThat(orders.get(0).getQuantity()).isEqualTo(1);
 
-        // Zero negative stock
         assertThat(finalItem.getAvailableStock()).isEqualTo(0);
         assertThat(finalItem.getAvailableStock()).isGreaterThanOrEqualTo(0);
 
-        // Zero duplicates: exactly 500 processed_events rows for this
-        // batch, one per simulated buyer, none double-counted.
-        Long processedCount = (Long) entityManager.createNativeQuery(
+        Number processedCount = (Number) entityManager.createNativeQuery(
                         "SELECT COUNT(*) FROM processed_events WHERE platform = 'SIMULATION' "
                                 + "AND platform_event_id LIKE :prefix")
                 .setParameter("prefix", "SIM_EVENT_" + session.getId() + "_%")
                 .getSingleResult();
 
-        assertThat(processedCount).isLessThanOrEqualTo(500L);
-        assertThat(processedCount).isGreaterThan(0L);
+        assertThat(processedCount.longValue()).isEqualTo(500L);
+
+        Number proofCount = (Number) entityManager.createNativeQuery(
+                        "SELECT COUNT(*) FROM reservation_proofs WHERE seller_id = :sellerId "
+                                + "AND order_id = :orderId")
+                .setParameter("sellerId", seller.getId())
+                .setParameter("orderId", orders.get(0).getId())
+                .getSingleResult();
+
+        assertThat(proofCount.longValue()).isEqualTo(1L);
     }
 
     private void setCurrentSeller(Long sellerId) {
