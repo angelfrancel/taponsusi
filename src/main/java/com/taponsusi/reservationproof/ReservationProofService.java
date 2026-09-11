@@ -10,6 +10,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Optional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -38,24 +39,50 @@ public class ReservationProofService {
 
     @Transactional
     public ReservationProof generateProof(Order order) {
-        String previousHash = reservationProofRepository
-                .findTopBySellerIdOrderBySequenceNumberDesc(order.getSellerId())
+        acquireSellerProofLock(order.getSellerId());
+
+        Optional<ReservationProof> latestProof =
+                reservationProofRepository
+                        .findTopBySellerIdOrderBySequenceNumberDesc(
+                                order.getSellerId()
+                        );
+
+        String previousHash = latestProof
                 .map(ReservationProof::getHash)
                 .orElse(GENESIS_HASH);
 
-        long nextSequence = reservationProofRepository
-                .findTopBySellerIdOrderBySequenceNumberDesc(order.getSellerId())
-                .map(p -> p.getSequenceNumber() + 1)
+        long nextSequence = latestProof
+                .map(proof -> proof.getSequenceNumber() + 1)
                 .orElse(1L);
 
         String proofData = buildProofData(order, nextSequence);
         String hash = sha256(proofData + previousHash);
-        String proofToken = computeProofToken(order.getBuyerPlatformId(), order.getInventoryItemId(), hash);
+
+        String proofToken = computeProofToken(
+                order.getBuyerPlatformId(),
+                order.getInventoryItemId(),
+                hash
+        );
 
         ReservationProof proof = new ReservationProof(
-                order.getSellerId(), order.getId(), nextSequence, proofData, previousHash, hash, proofToken);
+                order.getSellerId(),
+                order.getId(),
+                nextSequence,
+                proofData,
+                previousHash,
+                hash,
+                proofToken
+        );
 
         return reservationProofRepository.save(proof);
+    }
+
+    private void acquireSellerProofLock(Long sellerId) {
+        entityManager.createNativeQuery(
+                        "SELECT pg_advisory_xact_lock(:sellerId)"
+                )
+                .setParameter("sellerId", sellerId)
+                .getSingleResult();
     }
 
     @Transactional(readOnly = true)
