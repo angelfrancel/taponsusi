@@ -62,4 +62,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error("EMAIL_NOT_VERIFIED", ex.getMessage()));
     }
+
+    @ExceptionHandler(
+            com.taponsusi.livesession.InvalidLiveSessionTransitionException.class
+    )
+    public ResponseEntity<ApiResponse<Void>> handleInvalidLiveSessionTransition(
+            com.taponsusi.livesession.InvalidLiveSessionTransitionException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(
+                        ApiResponse.error(
+                                "INVALID_LIVE_SESSION_TRANSITION",
+                                exception.getMessage()
+                        )
+                );
+    }
 }
