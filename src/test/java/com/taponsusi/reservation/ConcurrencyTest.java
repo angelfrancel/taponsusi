@@ -17,6 +17,8 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,24 +41,64 @@ class ConcurrencyTest {
     @Autowired private OrderRepository orderRepository;
     @Autowired private PurchaseIntentParser purchaseIntentParser;
     @Autowired private ReservationEngine reservationEngine;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     @Test
     void fiveHundredConcurrentBuyersAgainstOneUnitOfStockYieldsExactlyOneOrder() throws InterruptedException {
-        Seller seller = sellerRepository.save(
-                new Seller("concurrency-test-" + System.currentTimeMillis() + "@test.com", "hash", "Concurrency Test Shop"));
+        TransactionTemplate transactionTemplate =
+                new TransactionTemplate(transactionManager);
 
-        setCurrentSeller(seller.getId());
-        LiveSession session = liveSessionRepository.save(
-                new LiveSession(seller.getId(), "Concurrency Test Session", "SIMULATION"));
+        TestData testData = transactionTemplate.execute(status -> {
+            Seller seller = sellerRepository.save(
+                    new Seller(
+                            "concurrency-test-"
+                                    + System.currentTimeMillis()
+                                    + "@test.com",
+                            "hash",
+                            "Concurrency Test Shop"
+                    )
+            );
 
-        InventoryItem item = inventoryItemRepository.save(
-                new InventoryItem(seller.getId(), session.getId(), "TESTCODE", "Test Item", 1, 1));
+            setCurrentSeller(seller.getId());
+
+            LiveSession session = liveSessionRepository.save(
+                    new LiveSession(
+                            seller.getId(),
+                            "Concurrency Test Session",
+                            "SIMULATION"
+                    )
+            );
+
+            InventoryItem item = inventoryItemRepository.save(
+                    new InventoryItem(
+                            seller.getId(),
+                            session.getId(),
+                            "TESTCODE",
+                            "Test Item",
+                            1,
+                            1
+                    )
+            );
+
+            return new TestData(
+                    seller.getId(),
+                    session.getId(),
+                    item.getId()
+            );
+        });
+
+        assertThat(testData).isNotNull();
 
         List<CommentEvent> events = SimulationCommentGenerator.generate(
-                seller.getId(), session.getId(), "TESTCODE", 500);
+                testData.sellerId(),
+                testData.sessionId(),
+                "TESTCODE",
+                500
+        );
 
         ExecutorService executor = Executors.newFixedThreadPool(10);
         AtomicInteger successfulReservations = new AtomicInteger();
@@ -72,7 +114,11 @@ class ConcurrencyTest {
                                 event.sellerId(), event.sessionId(),
                                 event.platformUserId(), event.rawMessage());
                         Optional<Order> result = reservationEngine.reserve(
-                                event.platform(), event.platformEventId(), intent, item.getId());
+                                event.platform(),
+                                event.platformEventId(),
+                                intent,
+                                testData.inventoryItemId()
+                        );
 
                         if (result.isPresent()) {
                             successfulReservations.incrementAndGet();
@@ -101,11 +147,52 @@ class ConcurrencyTest {
             }
         }
 
-        setCurrentSeller(seller.getId());
+        VerificationResult verification = transactionTemplate.execute(status -> {
+            setCurrentSeller(testData.sellerId());
 
-        List<Order> orders = orderRepository.findAllBySellerIdAndInventoryItemId(seller.getId(), item.getId());
+            List<Order> orders =
+                    orderRepository.findAllBySellerIdAndInventoryItemId(
+                            testData.sellerId(),
+                            testData.inventoryItemId()
+                    );
 
-        InventoryItem finalItem = inventoryItemRepository.findById(item.getId()).orElseThrow();
+            InventoryItem finalItem = inventoryItemRepository
+                    .findById(testData.inventoryItemId())
+                    .orElseThrow();
+
+            Number processedCount = (Number) entityManager.createNativeQuery(
+                            "SELECT COUNT(*) FROM processed_events "
+                                    + "WHERE platform = 'SIMULATION' "
+                                    + "AND platform_event_id LIKE :prefix")
+                    .setParameter(
+                            "prefix",
+                            "SIM_EVENT_" + testData.sessionId() + "_%"
+                    )
+                    .getSingleResult();
+
+            long proofCount = 0L;
+
+            if (orders.size() == 1) {
+                Number result = (Number) entityManager.createNativeQuery(
+                                "SELECT COUNT(*) FROM reservation_proofs "
+                                        + "WHERE seller_id = :sellerId "
+                                        + "AND order_id = :orderId")
+                        .setParameter("sellerId", testData.sellerId())
+                        .setParameter("orderId", orders.get(0).getId())
+                        .getSingleResult();
+
+                proofCount = result.longValue();
+            }
+
+            return new VerificationResult(
+                    orders,
+                    finalItem.getAvailableStock(),
+                    processedCount.longValue(),
+                    proofCount
+            );
+        });
+
+        assertThat(verification).isNotNull();
 
         assertThat(unexpectedFailures)
                 .as("No simulation task should fail with an unexpected exception")
@@ -113,33 +200,37 @@ class ConcurrencyTest {
 
         assertThat(successfulReservations.get()).isEqualTo(1);
         assertThat(duplicateResults.get()).isZero();
-        assertThat(successfulReservations.get()
-                + outOfStockRejections.get()
-                + contentionRejections.get()
-                + duplicateResults.get()).isEqualTo(500);
 
-        assertThat(orders).hasSize(1);
-        assertThat(orders.get(0).getQuantity()).isEqualTo(1);
+        assertThat(
+                successfulReservations.get()
+                        + outOfStockRejections.get()
+                        + contentionRejections.get()
+                        + duplicateResults.get()
+        ).isEqualTo(500);
 
-        assertThat(finalItem.getAvailableStock()).isEqualTo(0);
-        assertThat(finalItem.getAvailableStock()).isGreaterThanOrEqualTo(0);
+        assertThat(verification.orders()).hasSize(1);
+        assertThat(verification.orders().get(0).getQuantity()).isEqualTo(1);
 
-        Number processedCount = (Number) entityManager.createNativeQuery(
-                        "SELECT COUNT(*) FROM processed_events WHERE platform = 'SIMULATION' "
-                                + "AND platform_event_id LIKE :prefix")
-                .setParameter("prefix", "SIM_EVENT_" + session.getId() + "_%")
-                .getSingleResult();
+        assertThat(verification.availableStock()).isZero();
+        assertThat(verification.availableStock()).isGreaterThanOrEqualTo(0);
 
-        assertThat(processedCount.longValue()).isEqualTo(500L);
+        assertThat(verification.processedEventCount()).isEqualTo(500L);
+        assertThat(verification.proofCount()).isEqualTo(1L);
+    }
 
-        Number proofCount = (Number) entityManager.createNativeQuery(
-                        "SELECT COUNT(*) FROM reservation_proofs WHERE seller_id = :sellerId "
-                                + "AND order_id = :orderId")
-                .setParameter("sellerId", seller.getId())
-                .setParameter("orderId", orders.get(0).getId())
-                .getSingleResult();
+    private record TestData(
+            Long sellerId,
+            Long sessionId,
+            Long inventoryItemId
+    ) {
+    }
 
-        assertThat(proofCount.longValue()).isEqualTo(1L);
+    private record VerificationResult(
+            List<Order> orders,
+            int availableStock,
+            long processedEventCount,
+            long proofCount
+    ) {
     }
 
     private void setCurrentSeller(Long sellerId) {

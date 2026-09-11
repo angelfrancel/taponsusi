@@ -31,32 +31,62 @@ class RowLevelSecurityTest {
     @Test
     @Transactional
     void sellerCannotSeeAnotherSellersLiveSessions() {
-        Seller sellerA = sellerRepository.save(new Seller("rls-a@test.com", "hash", "Shop A"));
-        Seller sellerB = sellerRepository.save(new Seller("rls-b@test.com", "hash", "Shop B"));
+        Seller sellerA = sellerRepository.save(
+                new Seller("rls-a@test.com", "hash", "Shop A")
+        );
+        Seller sellerB = sellerRepository.save(
+                new Seller("rls-b@test.com", "hash", "Shop B")
+        );
 
         setCurrentSeller(sellerA.getId());
-        liveSessionRepository.save(new LiveSession(sellerA.getId(), "Seller A Live", "SIMULATION"));
+        LiveSession sessionA = liveSessionRepository.save(
+                new LiveSession(
+                        sellerA.getId(),
+                        "Seller A Live",
+                        "SIMULATION"
+                )
+        );
 
         setCurrentSeller(sellerB.getId());
-        liveSessionRepository.save(new LiveSession(sellerB.getId(), "Seller B Live", "SIMULATION"));
+        LiveSession sessionB = liveSessionRepository.save(
+                new LiveSession(
+                        sellerB.getId(),
+                        "Seller B Live",
+                        "SIMULATION"
+                )
+        );
 
         entityManager.flush();
+        entityManager.clear();
 
         setCurrentSeller(sellerA.getId());
+
         List<LiveSession> visibleToA = liveSessionRepository.findAll();
 
         assertThat(visibleToA)
-                .isNotEmpty()
-                .allMatch(session -> session.getSellerId().equals(sellerA.getId()))
-                .noneMatch(session -> session.getSellerId().equals(sellerB.getId()));
+                .extracting(LiveSession::getId)
+                .contains(sessionA.getId())
+                .doesNotContain(sessionB.getId());
 
+        assertThat(visibleToA)
+                .allMatch(session ->
+                        session.getSellerId().equals(sellerA.getId())
+                );
+
+        entityManager.clear();
         setCurrentSeller(sellerB.getId());
+
         List<LiveSession> visibleToB = liveSessionRepository.findAll();
 
         assertThat(visibleToB)
-                .isNotEmpty()
-                .allMatch(session -> session.getSellerId().equals(sellerB.getId()))
-                .noneMatch(session -> session.getSellerId().equals(sellerA.getId()));
+                .extracting(LiveSession::getId)
+                .contains(sessionB.getId())
+                .doesNotContain(sessionA.getId());
+
+        assertThat(visibleToB)
+                .allMatch(session ->
+                        session.getSellerId().equals(sellerB.getId())
+                );
     }
 
     private void setCurrentSeller(Long sellerId) {
