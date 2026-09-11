@@ -18,32 +18,44 @@ public class ReservationEngine {
     private final BuyerReputationService buyerReputationService;
     private final ReservationEventPublisher reservationEventPublisher;
 
-    public ReservationEngine(IdempotencyService idempotencyService,
-                             ReservationTransactionExecutor transactionExecutor,
-                             BuyerReputationService buyerReputationService,
-                             ReservationEventPublisher reservationEventPublisher) {
+    public ReservationEngine(
+            IdempotencyService idempotencyService,
+            ReservationTransactionExecutor transactionExecutor,
+            BuyerReputationService buyerReputationService,
+            ReservationEventPublisher reservationEventPublisher
+    ) {
         this.idempotencyService = idempotencyService;
         this.transactionExecutor = transactionExecutor;
         this.buyerReputationService = buyerReputationService;
         this.reservationEventPublisher = reservationEventPublisher;
     }
 
-    public Optional<Order> reserve(String platform, String platformEventId,
-                                   PurchaseIntent intent, Long inventoryItemId) {
-
-        if (buyerReputationService.isBlocked(intent.sellerId(), intent.platformUserId())) {
+    public Optional<Order> reserve(
+            String platform,
+            String platformEventId,
+            PurchaseIntent intent,
+            Long inventoryItemId
+    ) {
+        if (buyerReputationService.isBlocked(
+                intent.sellerId(),
+                intent.platformUserId()
+        )) {
             return Optional.empty();
         }
 
-        boolean isNew = idempotencyService.isNewEvent(platform, platformEventId);
-        if (!isNew) {
-            return Optional.empty();
-        }
+        Optional<Order> result = idempotencyService.executeIfNew(
+                platform,
+                platformEventId,
+                () -> transactionExecutor.execute(
+                        intent,
+                        inventoryItemId
+                )
+        );
 
-        // execute() is @Transactional on a different bean — by the time
-        // it returns here, the transaction has committed. Safe to push.
-        Order order = transactionExecutor.execute(intent, inventoryItemId);
-        reservationEventPublisher.publishReservationCreated(order);
-        return Optional.of(order);
+        result.ifPresent(
+                reservationEventPublisher::publishReservationCreated
+        );
+
+        return result;
     }
 }

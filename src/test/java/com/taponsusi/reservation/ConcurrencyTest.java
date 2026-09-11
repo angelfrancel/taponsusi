@@ -214,7 +214,9 @@ class ConcurrencyTest {
         assertThat(verification.availableStock()).isZero();
         assertThat(verification.availableStock()).isGreaterThanOrEqualTo(0);
 
-        assertThat(verification.processedEventCount()).isEqualTo(500L);
+        assertThat(verification.processedEventCount())
+                .as("Only the successfully committed reservation is marked processed")
+                .isEqualTo(1L);
         assertThat(verification.proofCount()).isEqualTo(1L);
     }
 
