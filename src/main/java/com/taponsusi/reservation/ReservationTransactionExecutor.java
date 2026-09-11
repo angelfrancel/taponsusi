@@ -19,6 +19,8 @@ import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 
 import java.util.List;
 
@@ -124,16 +126,31 @@ public class ReservationTransactionExecutor {
     private InventoryItem lockInventoryItem(Long inventoryItemId) {
         try {
             InventoryItem item = entityManager.find(
-                    InventoryItem.class, inventoryItemId, LockModeType.PESSIMISTIC_WRITE);
+                    InventoryItem.class,
+                    inventoryItemId,
+                    LockModeType.PESSIMISTIC_WRITE
+            );
 
             if (item == null) {
-                throw new ResourceNotFoundException("Inventory item not found: " + inventoryItemId);
+                throw new ResourceNotFoundException(
+                        "Inventory item not found: " + inventoryItemId
+                );
             }
+
             return item;
-        } catch (PessimisticLockingFailureException | QueryTimeoutException e) {
+        } catch (PessimisticLockException
+                 | LockTimeoutException
+                 | PessimisticLockingFailureException
+                 | QueryTimeoutException e) {
+
             throw new ReservationContendedException(
-                    "Could not acquire lock on inventory item " + inventoryItemId
-                            + " within " + lockTimeoutMs + "ms");
+                    "Could not acquire lock on inventory item "
+                            + inventoryItemId
+                            + " within "
+                            + lockTimeoutMs
+                            + "ms",
+                    e
+            );
         }
     }
 

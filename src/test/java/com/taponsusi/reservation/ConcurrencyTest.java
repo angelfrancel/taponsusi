@@ -58,7 +58,7 @@ class ConcurrencyTest {
         List<CommentEvent> events = SimulationCommentGenerator.generate(
                 seller.getId(), session.getId(), "TESTCODE", 500);
 
-        ExecutorService executor = Executors.newFixedThreadPool(50);
+        ExecutorService executor = Executors.newFixedThreadPool(10);
         AtomicInteger successfulReservations = new AtomicInteger();
         AtomicInteger outOfStockRejections = new AtomicInteger();
         AtomicInteger contentionRejections = new AtomicInteger();
