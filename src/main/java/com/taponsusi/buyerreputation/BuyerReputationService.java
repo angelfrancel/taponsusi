@@ -23,14 +23,6 @@ public class BuyerReputationService {
         this.tenantContext = tenantContext;
     }
 
-    @Transactional(readOnly = true)
-    public boolean isBlocked(Long sellerId, String buyerPlatformId) {
-        tenantContext.applyCurrentSeller(entityManager, sellerId);
-        return buyerReputationRepository.findBySellerIdAndBuyerPlatformId(sellerId, buyerPlatformId)
-                .map(r -> r.getFlaggedAs() == ReputationFlag.BLOCKED)
-                .orElse(false);
-    }
-
     @Transactional
     public void recordOrderCreated(Long sellerId, String buyerPlatformId) {
         tenantContext.applyCurrentSeller(entityManager, sellerId);
