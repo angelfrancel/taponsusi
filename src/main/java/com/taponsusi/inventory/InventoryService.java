@@ -22,16 +22,21 @@ public class InventoryService {
     private final InventoryItemRepository inventoryItemRepository;
     private final LiveSessionRepository liveSessionRepository;
     private final TenantContext tenantContext;
+    private final ReservationCodeGenerator reservationCodeGenerator;
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public InventoryService(InventoryItemRepository inventoryItemRepository,
-                            LiveSessionRepository liveSessionRepository,
-                            TenantContext tenantContext) {
+    public InventoryService(
+            InventoryItemRepository inventoryItemRepository,
+            LiveSessionRepository liveSessionRepository,
+            TenantContext tenantContext,
+            ReservationCodeGenerator reservationCodeGenerator
+    ) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.liveSessionRepository = liveSessionRepository;
         this.tenantContext = tenantContext;
+        this.reservationCodeGenerator = reservationCodeGenerator;
     }
 
     @Transactional
@@ -45,7 +50,11 @@ public class InventoryService {
         liveSessionRepository.findByIdAndSellerId(sessionId, sellerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Live session not found: " + sessionId));
 
-        String normalizedCode = normalize(request.reservationCode());
+        String normalizedCode = resolveReservationCode(
+                sellerId,
+                sessionId,
+                request
+        );
 
         if (inventoryItemRepository.existsBySellerIdAndSessionIdAndReservationCode(
                 sellerId, sessionId, normalizedCode)) {
@@ -85,12 +94,52 @@ public class InventoryService {
         return InventoryItemResponse.from(item);
     }
 
-    /**
-     * Trims, uppercases, and collapses whitespace only. Never
-     * auto-corrects spelling. Reservation codes are deliberately
-     * typo-sensitive.
-     */
-    private String normalize(String code) {
-        return code.trim().toUpperCase().replaceAll("\\s+", " ");
+    private String resolveReservationCode(
+            Long sellerId,
+            Long sessionId,
+            CreateInventoryItemRequest request
+    ) {
+        ReservationCodeMode codeMode =
+                request.effectiveCodeMode();
+
+        if (codeMode == ReservationCodeMode.AUTO) {
+            if (hasText(request.reservationCode())) {
+                throw new InvalidReservationCodeException(
+                        "Do not provide a reservation code when codeMode is AUTO"
+                );
+            }
+
+            return reservationCodeGenerator.generateUnique(
+                    sellerId,
+                    sessionId
+            );
+        }
+
+        if (!hasText(request.reservationCode())) {
+            throw new InvalidReservationCodeException(
+                    "Reservation code is required when codeMode is MANUAL"
+            );
+        }
+
+        String normalizedCode =
+                request.reservationCode().trim().toUpperCase();
+
+        if (!normalizedCode.matches("[A-Z0-9]+")) {
+            throw new InvalidReservationCodeException(
+                    "Reservation code may contain only letters and numbers"
+            );
+        }
+
+        if (normalizedCode.length() > 20) {
+            throw new InvalidReservationCodeException(
+                    "Reservation code must not exceed 20 characters"
+            );
+        }
+
+        return normalizedCode;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

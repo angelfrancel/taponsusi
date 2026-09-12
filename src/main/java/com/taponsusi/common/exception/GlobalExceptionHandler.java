@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.taponsusi.inventory.InvalidReservationCodeException;
 
 import java.util.stream.Collectors;
 
@@ -42,6 +43,17 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("VALIDATION_FAILED", message));
+    }
+
+    @ExceptionHandler(InvalidReservationCodeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidReservationCode(
+            InvalidReservationCodeException ex
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(
+                        "INVALID_RESERVATION_CODE",
+                        ex.getMessage()
+                ));
     }
 
     @ExceptionHandler(Exception.class)
