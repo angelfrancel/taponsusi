@@ -24,8 +24,9 @@ public class LiveSession {
     @Column(nullable = false)
     private String platform; // e.g. SIMULATION, FACEBOOK
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status; // e.g. SCHEDULED, LIVE, ENDED
+    private LiveSessionStatus status;
 
     @Column(name = "started_at")
     private Instant startedAt;
@@ -46,7 +47,7 @@ public class LiveSession {
         this.sellerId = sellerId;
         this.title = title;
         this.platform = platform;
-        this.status = "SCHEDULED";
+        this.status = LiveSessionStatus.DRAFT;;
     }
 
     @PrePersist
@@ -65,13 +66,13 @@ public class LiveSession {
     public String getFacebookPageId() { return facebookPageId; }
     public String getTitle() { return title; }
     public String getPlatform() { return platform; }
-    public String getStatus() { return status; }
+    public LiveSessionStatus getStatus() { return status; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getEndedAt() { return endedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
-    public void setStatus(String status) { this.status = status; }
+    void setStatus(LiveSessionStatus status) { this.status = status; }
     public void setStartedAt(Instant startedAt) { this.startedAt = startedAt; }
     public void setEndedAt(Instant endedAt) { this.endedAt = endedAt; }
     public void setFacebookPageId(String facebookPageId) { this.facebookPageId = facebookPageId; }

@@ -1,6 +1,7 @@
 package com.taponsusi.livesession.dto;
 
 import com.taponsusi.livesession.LiveSession;
+import com.taponsusi.livesession.LiveSessionStatus;
 
 import java.time.Instant;
 
@@ -8,7 +9,7 @@ public record LiveSessionResponse(
         Long id,
         String title,
         String platform,
-        String status,
+        LiveSessionStatus status,
         Instant startedAt,
         Instant endedAt,
         Instant createdAt

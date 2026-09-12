@@ -1,6 +1,7 @@
 package com.taponsusi.common.exception;
 
 import com.taponsusi.common.dto.ApiResponse;
+import com.taponsusi.livesession.LiveSessionNotReadyException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -9,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.taponsusi.inventory.InvalidReservationCodeException;
 
 import java.util.stream.Collectors;
 
@@ -43,6 +45,17 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("VALIDATION_FAILED", message));
     }
 
+    @ExceptionHandler(InvalidReservationCodeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidReservationCode(
+            InvalidReservationCodeException ex
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(
+                        "INVALID_RESERVATION_CODE",
+                        ex.getMessage()
+                ));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);
@@ -61,5 +74,31 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleEmailNotVerified(com.taponsusi.seller.EmailNotVerifiedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error("EMAIL_NOT_VERIFIED", ex.getMessage()));
+    }
+
+    @ExceptionHandler(
+            com.taponsusi.livesession.InvalidLiveSessionTransitionException.class
+    )
+    public ResponseEntity<ApiResponse<Void>> handleInvalidLiveSessionTransition(
+            com.taponsusi.livesession.InvalidLiveSessionTransitionException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(
+                        ApiResponse.error(
+                                "INVALID_LIVE_SESSION_TRANSITION",
+                                exception.getMessage()
+                        )
+                );
+    }
+
+    @ExceptionHandler(LiveSessionNotReadyException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLiveSessionNotReady(
+            LiveSessionNotReadyException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(
+                        "LIVE_SESSION_NOT_READY",
+                        exception.getMessage()
+                ));
     }
 }

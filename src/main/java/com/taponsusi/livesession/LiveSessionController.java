@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.taponsusi.livesession.dto.TransitionLiveSessionRequest;
 
 import java.util.List;
 
@@ -38,5 +39,28 @@ public class LiveSessionController {
     public ResponseEntity<ApiResponse<LiveSessionResponse>> getById(@PathVariable Long id) {
         LiveSessionResponse response = liveSessionService.getById(id);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{id}/preflight")
+    public ResponseEntity<SessionPreflightResponse> preflight(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(liveSessionService.preflight(id));
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<LiveSessionResponse>> transitionStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody TransitionLiveSessionRequest request
+    ) {
+        LiveSessionResponse response =
+                liveSessionService.transitionStatus(
+                        id,
+                        request.status()
+                );
+
+        return ResponseEntity.ok(
+                ApiResponse.success(response)
+        );
     }
 }

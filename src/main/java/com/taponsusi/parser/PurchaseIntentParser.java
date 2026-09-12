@@ -5,74 +5,114 @@ import org.springframework.stereotype.Component;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 @Component
 public class PurchaseIntentParser {
 
     private static final int ABSURD_QUANTITY_CEILING = 1000;
 
-    // A "code" is a contiguous run of letters/digits. Matches things
-    // like SWERTE, SWERTE2, 123.
-    // Codes are typo-sensitive by design, not smart-matched.
-    private static final Pattern CODE_PATTERN = Pattern.compile("[A-Z0-9]+");
+    /*
+     * Accepted formats:
+     *
+     * SWERTE
+     * MINE SWERTE
+     * MINE! SWERTE
+     * SWERTE 2
+     * SWERTE X2
+     * MINE SWERTE X2
+     * MINE SWERTE X 2
+     *
+     * Group 1 is the reservation code.
+     * Group 2 is the optional quantity.
+     */
+    private static final Pattern PURCHASE_PATTERN = Pattern.compile(
+            "^(?:MINE!?\\s+)?"
+                    + "([A-Z0-9]{1,20})"
+                    + "(?:\\s+(?:X\\s*)?(\\d+))?$"
+    );
 
-    public PurchaseIntent parse(Long sellerId, Long sessionId,
-                                String platformUserId, String rawMessage) {
+    public PurchaseIntent parse(
+            Long sellerId,
+            Long sessionId,
+            String platformUserId,
+            String rawMessage
+    ) {
         String normalized = normalize(rawMessage);
 
         if (normalized.isEmpty()) {
             throw new PurchaseIntentRejectedException(
-                    "EMPTY_COMMENT", "Comment has no content after normalization");
+                    "EMPTY_COMMENT",
+                    "Comment has no content after normalization"
+            );
         }
 
-        java.util.List<String> codes = extractCandidateCodes(normalized);
+        Matcher matcher = PURCHASE_PATTERN.matcher(normalized);
 
-        if (codes.isEmpty()) {
+        if (!matcher.matches()) {
             throw new PurchaseIntentRejectedException(
-                    "NO_CODE_FOUND", "No reservation code found in comment");
+                    "INVALID_FORMAT",
+                    "Comment does not match a supported reservation format"
+            );
         }
 
-        if (codes.size() > 1) {
-            throw new PurchaseIntentRejectedException(
-                    "MULTIPLE_CODES", "Comment references more than one code: " + codes);
-        }
-
-        int quantity = extractQuantity(normalized);
+        String reservationCode = matcher.group(1);
+        int quantity = parseQuantity(matcher.group(2));
 
         if (quantity <= 0) {
             throw new PurchaseIntentRejectedException(
-                    "INVALID_QUANTITY", "Quantity must be positive, got: " + quantity);
+                    "INVALID_QUANTITY",
+                    "Quantity must be positive"
+            );
         }
 
         if (quantity > ABSURD_QUANTITY_CEILING) {
             throw new PurchaseIntentRejectedException(
-                    "ABSURD_QUANTITY", "Quantity exceeds sanity ceiling: " + quantity);
+                    "ABSURD_QUANTITY",
+                    "Quantity exceeds sanity ceiling: " + quantity
+            );
         }
 
-        return new PurchaseIntent(platformUserId, sellerId, sessionId, codes.get(0), quantity);
+        return new PurchaseIntent(
+                platformUserId,
+                sellerId,
+                sessionId,
+                reservationCode,
+                quantity
+        );
     }
 
-
-    private String normalize(String raw) {
-        if (raw == null) return "";
-        return raw.trim().toUpperCase().replaceAll("\\s+", " ");
-    }
-
-    private java.util.List<String> extractCandidateCodes(String normalized) {
-        java.util.List<String> found = new java.util.ArrayList<>();
-        Matcher matcher = CODE_PATTERN.matcher(normalized);
-        while (matcher.find()) {
-            found.add(matcher.group());
+    private int parseQuantity(String quantityText) {
+        if (quantityText == null) {
+            return 1;
         }
-        return found;
+
+        try {
+            long parsedQuantity = Long.parseLong(quantityText);
+
+            if (parsedQuantity > ABSURD_QUANTITY_CEILING) {
+                throw new PurchaseIntentRejectedException(
+                        "ABSURD_QUANTITY",
+                        "Quantity exceeds sanity ceiling: "
+                                + quantityText
+                );
+            }
+
+            return (int) parsedQuantity;
+        } catch (NumberFormatException exception) {
+            throw new PurchaseIntentRejectedException(
+                    "INVALID_QUANTITY",
+                    "Quantity is not a valid number"
+            );
+        }
     }
 
-
-    private int extractQuantity(String normalized) {
-        Matcher qtyMatcher = Pattern.compile("X(\\d+)").matcher(normalized);
-        if (qtyMatcher.find()) {
-            return Integer.parseInt(qtyMatcher.group(1));
+    private String normalize(String rawMessage) {
+        if (rawMessage == null) {
+            return "";
         }
-        return 1;
+
+        return rawMessage
+                .trim()
+                .toUpperCase()
+                .replaceAll("\\s+", " ");
     }
 }

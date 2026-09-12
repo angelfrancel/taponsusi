@@ -17,13 +17,27 @@ public class LiveSessionService {
 
     private final LiveSessionRepository liveSessionRepository;
     private final TenantContext tenantContext;
+    private final LiveSessionStateMachine stateMachine;
+    private final LiveSessionPreflightService preflightService;
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public LiveSessionService(LiveSessionRepository liveSessionRepository, TenantContext tenantContext) {
+    public LiveSessionService(
+            LiveSessionRepository liveSessionRepository,
+            TenantContext tenantContext,
+            LiveSessionStateMachine stateMachine,
+            LiveSessionPreflightService preflightService
+    ) {
         this.liveSessionRepository = liveSessionRepository;
         this.tenantContext = tenantContext;
+        this.stateMachine = stateMachine;
+        this.preflightService = preflightService;
+    }
+
+    @Transactional(readOnly = true)
+    public SessionPreflightResponse preflight(Long sessionId) {
+        return preflightService.evaluate(sessionId);
     }
 
     @Transactional
@@ -56,5 +70,49 @@ public class LiveSessionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Live session not found: " + id));
 
         return LiveSessionResponse.from(session);
+    }
+
+    @Transactional
+    public LiveSessionResponse transitionStatus(
+            Long sessionId,
+            LiveSessionStatus requestedStatus
+    ) {
+        tenantContext.applyCurrentSeller(entityManager);
+
+        Long sellerId = AuthenticatedSeller.currentSellerId();
+
+        LiveSession session = liveSessionRepository
+                .findByIdAndSellerId(sessionId, sellerId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Live session not found: " + sessionId
+                        )
+                );
+
+        LiveSessionStatus currentStatus = session.getStatus();
+
+        stateMachine.validate(currentStatus, requestedStatus);
+
+        if (currentStatus == LiveSessionStatus.DRAFT
+                && requestedStatus == LiveSessionStatus.READY) {
+            preflightService.requireReady(sessionId);
+        }
+
+        session.setStatus(requestedStatus);
+
+        if (requestedStatus == LiveSessionStatus.LIVE
+                && session.getStartedAt() == null) {
+            session.setStartedAt(java.time.Instant.now());
+        }
+
+        if (requestedStatus == LiveSessionStatus.ENDED) {
+            session.setEndedAt(java.time.Instant.now());
+        }
+
+        session.setStatus(requestedStatus);
+
+        LiveSession saved = liveSessionRepository.save(session);
+
+        return LiveSessionResponse.from(saved);
     }
 }

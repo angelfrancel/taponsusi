@@ -1,44 +1,30 @@
 package com.taponsusi.order;
 
-import com.taponsusi.audit.AuditService;
 import com.taponsusi.seller.Seller;
 import com.taponsusi.seller.SellerRepository;
-import com.taponsusi.websocket.ReservationEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 
 @Component
 public class ReservationExpirationScheduler {
 
-    private static final Logger log = LoggerFactory.getLogger(ReservationExpirationScheduler.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(ReservationExpirationScheduler.class);
 
     private final SellerRepository sellerRepository;
-    private final OrderRepository orderRepository;
-    private final OrderService orderService;
-    private final AuditService auditService;
-    private final ReservationEventPublisher reservationEventPublisher;
+    private final SellerExpirationProcessor expirationProcessor;
 
-    @Value("${taponsusi.reservation.safety-net-hours}")
-    private long safetyNetHours;
-
-    public ReservationExpirationScheduler(SellerRepository sellerRepository,
-                                          OrderRepository orderRepository,
-                                          OrderService orderService,
-                                          AuditService auditService,
-                                          ReservationEventPublisher reservationEventPublisher) {
+    public ReservationExpirationScheduler(
+            SellerRepository sellerRepository,
+            SellerExpirationProcessor expirationProcessor
+    ) {
         this.sellerRepository = sellerRepository;
-        this.orderRepository = orderRepository;
-        this.orderService = orderService;
-        this.auditService = auditService;
-        this.reservationEventPublisher = reservationEventPublisher;
+        this.expirationProcessor = expirationProcessor;
     }
 
     @Scheduled(fixedDelayString = "300000")
@@ -47,41 +33,14 @@ public class ReservationExpirationScheduler {
 
         for (Seller seller : allSellers) {
             try {
-                expirePendingOrders(seller.getId());
-                autoReleaseOverdueOrders(seller.getId());
-            } catch (Exception e) {
-                // One seller's bad data/edge case must not stop the
-                // scheduler from processing every other seller.
-                log.error("Expiration processing failed for seller {}", seller.getId(), e);
+                expirationProcessor.processSeller(seller.getId());
+            } catch (Exception exception) {
+                log.error(
+                        "Expiration processing failed for seller {}",
+                        seller.getId(),
+                        exception
+                );
             }
-        }
-    }
-
-    private void expirePendingOrders(Long sellerId) {
-        List<Order> pastDue = orderRepository.findAllBySellerIdAndStatusAndExpiresAtBefore(
-                sellerId, OrderStatus.PENDING, Instant.now());
-
-        for (Order order : pastDue) {
-            Order updated = orderService.transitionStatusInternal(
-                    order.getId(), OrderStatus.OVERDUE, sellerId, "EXPIRATION_SCHEDULER");
-            reservationEventPublisher.publishOrderUpdated(updated);
-        }
-    }
-
-    private void autoReleaseOverdueOrders(Long sellerId) {
-        Instant safetyNetThreshold = Instant.now().minus(safetyNetHours, ChronoUnit.HOURS);
-
-        List<Order> pastSafetyNet = orderRepository.findAllBySellerIdAndStatusAndOverdueSinceBefore(
-                sellerId, OrderStatus.OVERDUE, safetyNetThreshold);
-
-        for (Order order : pastSafetyNet) {
-            Order updated = orderService.transitionStatusInternal(
-                    order.getId(), OrderStatus.CANCELLED, sellerId, "AUTO_RELEASED_STALE_NO_RESPONSE");
-            reservationEventPublisher.publishOrderUpdated(updated);
-
-            log.warn("AUTO_RELEASED_STALE_NO_RESPONSE: order {} for seller {} auto-cancelled "
-                            + "after {} hours overdue with no seller action",
-                    order.getId(), sellerId, safetyNetHours);
         }
     }
 }
