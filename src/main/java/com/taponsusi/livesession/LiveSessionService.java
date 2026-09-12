@@ -18,6 +18,7 @@ public class LiveSessionService {
     private final LiveSessionRepository liveSessionRepository;
     private final TenantContext tenantContext;
     private final LiveSessionStateMachine stateMachine;
+    private final LiveSessionPreflightService preflightService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -25,11 +26,18 @@ public class LiveSessionService {
     public LiveSessionService(
             LiveSessionRepository liveSessionRepository,
             TenantContext tenantContext,
-            LiveSessionStateMachine stateMachine
+            LiveSessionStateMachine stateMachine,
+            LiveSessionPreflightService preflightService
     ) {
         this.liveSessionRepository = liveSessionRepository;
         this.tenantContext = tenantContext;
         this.stateMachine = stateMachine;
+        this.preflightService = preflightService;
+    }
+
+    @Transactional(readOnly = true)
+    public SessionPreflightResponse preflight(Long sessionId) {
+        return preflightService.evaluate(sessionId);
     }
 
     @Transactional
@@ -84,6 +92,13 @@ public class LiveSessionService {
         LiveSessionStatus currentStatus = session.getStatus();
 
         stateMachine.validate(currentStatus, requestedStatus);
+
+        if (currentStatus == LiveSessionStatus.DRAFT
+                && requestedStatus == LiveSessionStatus.READY) {
+            preflightService.requireReady(sessionId);
+        }
+
+        session.setStatus(requestedStatus);
 
         if (requestedStatus == LiveSessionStatus.LIVE
                 && session.getStartedAt() == null) {

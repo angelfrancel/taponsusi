@@ -1,6 +1,7 @@
 package com.taponsusi.common.exception;
 
 import com.taponsusi.common.dto.ApiResponse;
+import com.taponsusi.livesession.LiveSessionNotReadyException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -76,5 +77,16 @@ public class GlobalExceptionHandler {
                                 exception.getMessage()
                         )
                 );
+    }
+
+    @ExceptionHandler(LiveSessionNotReadyException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLiveSessionNotReady(
+            LiveSessionNotReadyException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(
+                        "LIVE_SESSION_NOT_READY",
+                        exception.getMessage()
+                ));
     }
 }
