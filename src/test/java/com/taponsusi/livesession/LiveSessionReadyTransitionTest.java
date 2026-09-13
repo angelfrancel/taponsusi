@@ -84,7 +84,7 @@ class LiveSessionReadyTransitionTest {
                         )
                 );
 
-        when(liveSessionRepository.findByIdAndSellerId(
+        when(liveSessionRepository.findForStatusTransition(
                 SESSION_ID,
                 SELLER_ID
         )).thenReturn(Optional.of(session));

@@ -82,7 +82,7 @@ public class LiveSessionService {
         Long sellerId = AuthenticatedSeller.currentSellerId();
 
         LiveSession session = liveSessionRepository
-                .findByIdAndSellerId(sessionId, sellerId)
+                .findForStatusTransition(sessionId, sellerId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Live session not found: " + sessionId

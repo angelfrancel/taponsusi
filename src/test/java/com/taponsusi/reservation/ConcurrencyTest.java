@@ -73,6 +73,17 @@ class ConcurrencyTest {
                     )
             );
 
+            entityManager.createNativeQuery("""
+                UPDATE live_sessions
+                SET status = 'LIVE'
+                WHERE id = :sessionId
+                """)
+                    .setParameter("sessionId", session.getId())
+                    .executeUpdate();
+
+            entityManager.flush();
+            entityManager.clear();
+
             InventoryItem item = inventoryItemRepository.save(
                     new InventoryItem(
                             seller.getId(),

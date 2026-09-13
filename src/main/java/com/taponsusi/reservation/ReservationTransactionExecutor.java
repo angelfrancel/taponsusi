@@ -21,6 +21,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PessimisticLockException;
+import com.taponsusi.livesession.LiveSession;
+import com.taponsusi.livesession.LiveSessionRepository;
+import com.taponsusi.livesession.LiveSessionStatus;
 
 import java.util.List;
 
@@ -34,6 +37,7 @@ public class ReservationTransactionExecutor {
     private final AuditService auditService;
     private final ReservationProofService reservationProofService;
     private final BuyerReputationService buyerReputationService;
+    private final LiveSessionRepository liveSessionRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -47,19 +51,25 @@ public class ReservationTransactionExecutor {
     public ReservationTransactionExecutor(InventoryItemRepository inventoryItemRepository,
                                           OrderRepository orderRepository,
                                           TenantContext tenantContext,
-                                          AuditService auditService, ReservationProofService reservationProofService, BuyerReputationService buyerReputationService) {
+                                          AuditService auditService, ReservationProofService reservationProofService, BuyerReputationService buyerReputationService, LiveSessionRepository liveSessionRepository) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.orderRepository = orderRepository;
         this.tenantContext = tenantContext;
         this.auditService = auditService;
         this.reservationProofService = reservationProofService;
         this.buyerReputationService = buyerReputationService;
+        this.liveSessionRepository = liveSessionRepository;
     }
 
     @Transactional
     public Order execute(PurchaseIntent intent, Long inventoryItemId) {
-        tenantContext.applyCurrentSeller(entityManager, intent.sellerId());
+        tenantContext.applyCurrentSeller(
+                entityManager,
+                intent.sellerId()
+        );
+
         applyLockTimeout();
+        requireLiveSession(intent);
 
         InventoryItem item = lockInventoryItem(inventoryItemId);
 
@@ -166,5 +176,26 @@ public class ReservationTransactionExecutor {
     private void applyLockTimeout() {
         entityManager.createNativeQuery("SET LOCAL lock_timeout = '" + lockTimeoutMs + "ms'")
                 .executeUpdate();
+    }
+
+    private void requireLiveSession(PurchaseIntent intent) {
+        LiveSession session = liveSessionRepository
+                .findForReservation(
+                        intent.sessionId(),
+                        intent.sellerId()
+                )
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Live session not found: "
+                                        + intent.sessionId()
+                        )
+                );
+
+        if (session.getStatus() != LiveSessionStatus.LIVE) {
+            throw new SessionNotLiveException(
+                    session.getId(),
+                    session.getStatus()
+            );
+        }
     }
 }
