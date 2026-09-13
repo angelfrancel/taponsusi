@@ -88,6 +88,17 @@ class ConcurrentMultiItemProofRaceTest {
                     )
             );
 
+            entityManager.createNativeQuery("""
+                    UPDATE live_sessions
+                    SET status = 'LIVE'
+                    WHERE id = :sessionId
+                    """)
+                    .setParameter("sessionId", session.getId())
+                    .executeUpdate();
+
+            entityManager.flush();
+            entityManager.clear();
+
             List<TestItem> items = new ArrayList<>();
 
             for (int index = 0; index < RESERVATION_COUNT; index++) {

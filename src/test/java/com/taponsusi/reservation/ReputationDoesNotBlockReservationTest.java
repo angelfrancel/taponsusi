@@ -1,12 +1,13 @@
-package com.taponsusi.buyerreputation;
+package com.taponsusi.reservation;
 
+import com.taponsusi.buyerreputation.BuyerReputationService;
+import com.taponsusi.buyerreputation.ReputationFlag;
 import com.taponsusi.inventory.InventoryItem;
 import com.taponsusi.inventory.InventoryItemRepository;
 import com.taponsusi.livesession.LiveSession;
 import com.taponsusi.livesession.LiveSessionRepository;
 import com.taponsusi.order.Order;
 import com.taponsusi.parser.PurchaseIntent;
-import com.taponsusi.reservation.ReservationEngine;
 import com.taponsusi.seller.Seller;
 import com.taponsusi.seller.SellerRepository;
 import jakarta.persistence.EntityManager;
@@ -73,6 +74,17 @@ class ReputationDoesNotBlockReservationTest {
                             "SIMULATION"
                     )
             );
+
+            entityManager.createNativeQuery("""
+                    UPDATE live_sessions
+                    SET status = 'LIVE'
+                    WHERE id = :sessionId
+                    """)
+                    .setParameter("sessionId", session.getId())
+                    .executeUpdate();
+
+            entityManager.flush();
+            entityManager.clear();
 
             String reservationCode =
                     "LABEL" + suffix.replace("-", "").toUpperCase();

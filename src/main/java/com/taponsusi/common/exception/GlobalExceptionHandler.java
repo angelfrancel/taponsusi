@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.taponsusi.inventory.InvalidReservationCodeException;
+import com.taponsusi.reservation.SessionNotLiveException;
 
 import java.util.stream.Collectors;
 
@@ -52,6 +53,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(
                         "INVALID_RESERVATION_CODE",
+                        ex.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(SessionNotLiveException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSessionNotLive(
+            SessionNotLiveException ex
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(
+                        "SESSION_NOT_LIVE",
                         ex.getMessage()
                 ));
     }
