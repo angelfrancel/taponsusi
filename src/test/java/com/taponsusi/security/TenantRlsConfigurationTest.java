@@ -23,7 +23,8 @@ class TenantRlsConfigurationTest {
             "orders",
             "audit_events",
             "reservation_proofs",
-            "buyer_reputation"
+            "buyer_reputation",
+            "waitlist_entries"
     );
 
     @PersistenceContext
@@ -48,7 +49,8 @@ class TenantRlsConfigurationTest {
                       'orders',
                       'audit_events',
                       'reservation_proofs',
-                      'buyer_reputation'
+                      'buyer_reputation',
+                      'waitlist_entries'
                   )
                 """)
                 .getResultList();
@@ -98,7 +100,8 @@ class TenantRlsConfigurationTest {
                       'orders',
                       'audit_events',
                       'reservation_proofs',
-                      'buyer_reputation'
+                      'buyer_reputation',
+                      'waitlist_entries'
                   )
                 """)
                 .getResultList();
