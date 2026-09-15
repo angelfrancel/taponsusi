@@ -4,6 +4,7 @@ import com.taponsusi.parser.CommentEvent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Instant;
 
 
 public class SimulationCommentGenerator {
@@ -11,6 +12,8 @@ public class SimulationCommentGenerator {
     public static List<CommentEvent> generate(Long sellerId, Long sessionId,
                                               String reservationCode, int buyerCount) {
         List<CommentEvent> events = new ArrayList<>(buyerCount);
+
+        Instant baseSourceTime = Instant.now();
 
         for (int i = 0; i < buyerCount; i++) {
             String buyerId = "SIM_BUYER_" + i;
@@ -22,7 +25,8 @@ public class SimulationCommentGenerator {
                     buyerId,
                     sellerId,
                     sessionId,
-                    reservationCode
+                    reservationCode,
+                    baseSourceTime.plusNanos(i)
             ));
         }
 

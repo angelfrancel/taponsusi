@@ -122,8 +122,12 @@ class ConcurrencyTest {
                 .<Callable<Void>>map(event -> () -> {
                     try {
                         PurchaseIntent intent = purchaseIntentParser.parse(
-                                event.sellerId(), event.sessionId(),
-                                event.platformUserId(), event.rawMessage());
+                                event.sellerId(),
+                                event.sessionId(),
+                                event.platformUserId(),
+                                event.rawMessage(),
+                                event.sourceCreatedAt()
+                        );
                         Optional<Order> result = reservationEngine.reserve(
                                 event.platform(),
                                 event.platformEventId(),

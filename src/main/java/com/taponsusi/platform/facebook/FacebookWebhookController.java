@@ -123,7 +123,8 @@ public class FacebookWebhookController {
                     event.sellerId(),
                     event.sessionId(),
                     event.platformUserId(),
-                    event.rawMessage()
+                    event.rawMessage(),
+                    event.sourceCreatedAt()
             );
 
             var inventoryItem = inventoryItemRepository

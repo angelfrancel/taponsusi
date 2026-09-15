@@ -72,8 +72,12 @@ public class SimulationService {
                     long start = System.currentTimeMillis();
                     try {
                         PurchaseIntent intent = purchaseIntentParser.parse(
-                                event.sellerId(), event.sessionId(),
-                                event.platformUserId(), event.rawMessage());
+                                event.sellerId(),
+                                event.sessionId(),
+                                event.platformUserId(),
+                                event.rawMessage(),
+                                event.sourceCreatedAt()
+                        );
 
                         Optional<Order> order = reservationEngine.reserve(
                                 event.platform(), event.platformEventId(), intent, item.getId());

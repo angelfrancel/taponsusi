@@ -2,6 +2,7 @@ package com.taponsusi.parser;
 
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +37,28 @@ public class PurchaseIntentParser {
             String platformUserId,
             String rawMessage
     ) {
+        return parse(
+                sellerId,
+                sessionId,
+                platformUserId,
+                rawMessage,
+                Instant.now()
+        );
+    }
+
+    public PurchaseIntent parse(
+            Long sellerId,
+            Long sessionId,
+            String platformUserId,
+            String rawMessage,
+            Instant sourceCreatedAt
+    ) {
+        if (sourceCreatedAt == null) {
+            throw new IllegalArgumentException(
+                    "Source creation time is required"
+            );
+        }
+
         String normalized = normalize(rawMessage);
 
         if (normalized.isEmpty()) {
@@ -76,7 +99,8 @@ public class PurchaseIntentParser {
                 sellerId,
                 sessionId,
                 reservationCode,
-                quantity
+                quantity,
+                sourceCreatedAt
         );
     }
 

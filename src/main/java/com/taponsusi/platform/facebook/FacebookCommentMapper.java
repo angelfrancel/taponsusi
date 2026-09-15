@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 
 @Component
@@ -45,13 +46,19 @@ public class FacebookCommentMapper {
 
                 FacebookWebhookPayload.Value value = change.value();
 
+                Instant sourceCreatedAt =
+                        value.createdTime() != null
+                                ? Instant.ofEpochSecond(value.createdTime())
+                                : Instant.now();
+
                 events.add(new CommentEvent(
                         "FACEBOOK",
                         value.commentId(),
                         value.from().id(),
                         session.get().getSellerId(),
                         session.get().getId(),
-                        value.message()
+                        value.message(),
+                        sourceCreatedAt
                 ));
             }
         }
