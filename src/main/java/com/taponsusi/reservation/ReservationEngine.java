@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
-
 @Service
 public class ReservationEngine {
 
@@ -23,28 +22,77 @@ public class ReservationEngine {
     ) {
         this.idempotencyService = idempotencyService;
         this.transactionExecutor = transactionExecutor;
-        this.reservationEventPublisher = reservationEventPublisher;
+        this.reservationEventPublisher =
+                reservationEventPublisher;
     }
 
+    public ReservationOutcome decide(
+            String platform,
+            String platformEventId,
+            PurchaseIntent intent,
+            Long inventoryItemId
+    ) {
+        Optional<ReservationOutcome> processed =
+                idempotencyService.executeIfNew(
+                        platform,
+                        platformEventId,
+                        () -> transactionExecutor.execute(
+                                platform,
+                                platformEventId,
+                                intent,
+                                inventoryItemId
+                        )
+                );
+
+        ReservationOutcome outcome =
+                processed.orElseGet(
+                        ReservationOutcome::duplicate
+                );
+
+        if (outcome.isReserved()) {
+            reservationEventPublisher
+                    .publishReservationCreated(
+                            outcome.order()
+                    );
+        }
+
+        return outcome;
+    }
+
+    /*
+     * Compatibility method for current simulation, webhook, and tests.
+     *
+     * Existing callers still receive:
+     * - an Order for a successful reservation;
+     * - Optional.empty() for a duplicate event;
+     * - OutOfStockException when the buyer was waitlisted.
+     *
+     * The waitlist transaction has already committed before the
+     * OutOfStockException is raised here.
+     */
     public Optional<Order> reserve(
             String platform,
             String platformEventId,
             PurchaseIntent intent,
             Long inventoryItemId
     ) {
-        Optional<Order> result = idempotencyService.executeIfNew(
+        ReservationOutcome outcome = decide(
                 platform,
                 platformEventId,
-                () -> transactionExecutor.execute(
-                        intent,
-                        inventoryItemId
-                )
+                intent,
+                inventoryItemId
         );
 
-        result.ifPresent(
-                reservationEventPublisher::publishReservationCreated
-        );
+        if (outcome.isWaitlisted()) {
+            throw new OutOfStockException(
+                    "Item "
+                            + inventoryItemId
+                            + " is out of stock; buyer "
+                            + intent.platformUserId()
+                            + " was added to the waitlist"
+            );
+        }
 
-        return result;
+        return outcome.optionalOrder();
     }
 }

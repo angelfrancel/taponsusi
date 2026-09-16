@@ -24,6 +24,8 @@ import jakarta.persistence.PessimisticLockException;
 import com.taponsusi.livesession.LiveSession;
 import com.taponsusi.livesession.LiveSessionRepository;
 import com.taponsusi.livesession.LiveSessionStatus;
+import com.taponsusi.waitlist.WaitlistEntry;
+import com.taponsusi.waitlist.WaitlistService;
 
 import java.util.List;
 
@@ -38,6 +40,7 @@ public class ReservationTransactionExecutor {
     private final ReservationProofService reservationProofService;
     private final BuyerReputationService buyerReputationService;
     private final LiveSessionRepository liveSessionRepository;
+    private final WaitlistService waitlistService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -51,7 +54,7 @@ public class ReservationTransactionExecutor {
     public ReservationTransactionExecutor(InventoryItemRepository inventoryItemRepository,
                                           OrderRepository orderRepository,
                                           TenantContext tenantContext,
-                                          AuditService auditService, ReservationProofService reservationProofService, BuyerReputationService buyerReputationService, LiveSessionRepository liveSessionRepository) {
+                                          AuditService auditService, ReservationProofService reservationProofService, BuyerReputationService buyerReputationService, LiveSessionRepository liveSessionRepository, WaitlistService waitlistService) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.orderRepository = orderRepository;
         this.tenantContext = tenantContext;
@@ -59,10 +62,16 @@ public class ReservationTransactionExecutor {
         this.reservationProofService = reservationProofService;
         this.buyerReputationService = buyerReputationService;
         this.liveSessionRepository = liveSessionRepository;
+        this.waitlistService = waitlistService;
     }
 
     @Transactional
-    public Order execute(PurchaseIntent intent, Long inventoryItemId) {
+    public ReservationOutcome execute(
+            String platform,
+            String platformEventId,
+            PurchaseIntent intent,
+            Long inventoryItemId
+    ){
         tenantContext.applyCurrentSeller(
                 entityManager,
                 intent.sellerId()
@@ -104,11 +113,37 @@ public class ReservationTransactionExecutor {
         }
 
         if (item.getAvailableStock() <= 0) {
-            auditService.record(intent.sellerId(), "RESERVATION_REJECTED_OUT_OF_STOCK",
-                    "InventoryItem", inventoryItemId,
-                    "Buyer " + intent.platformUserId() + " requested " + intent.quantity()
-                            + ", available_stock was 0");
-            throw new OutOfStockException("Item " + inventoryItemId + " is out of stock");
+            WaitlistEntry waitlistEntry = waitlistService.enqueue(
+                    intent.sellerId(),
+                    intent.sessionId(),
+                    inventoryItemId,
+                    platform,
+                    platformEventId,
+                    intent.platformUserId(),
+                    intent.quantity(),
+                    intent.sourceCreatedAt()
+            ).orElseThrow(() ->
+                    new IllegalStateException(
+                            "Platform event was already waitlisted without "
+                                    + "a matching processed-event record: "
+                                    + platformEventId
+                    )
+            );
+
+            auditService.record(
+                    intent.sellerId(),
+                    "WAITLIST_JOINED",
+                    "WaitlistEntry",
+                    waitlistEntry.getId(),
+                    "Buyer "
+                            + intent.platformUserId()
+                            + " joined the waitlist for inventory item "
+                            + inventoryItemId
+            );
+
+            return ReservationOutcome.waitlisted(
+                    waitlistEntry
+            );
         }
 
         int fulfilled = Math.min(newPortionRequested, item.getAvailableStock());
@@ -130,7 +165,7 @@ public class ReservationTransactionExecutor {
                         + " of code " + intent.reservationCode()
                         + (fulfilled < newPortionRequested ? " (partial fulfillment)" : ""));
 
-        return saved;
+        return ReservationOutcome.reserved(saved);
     }
 
     private InventoryItem lockInventoryItem(Long inventoryItemId) {

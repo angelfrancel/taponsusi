@@ -185,6 +185,27 @@ class ConcurrencyTest {
                     )
                     .getSingleResult();
 
+            Number waitlistCount = (Number) entityManager
+                    .createNativeQuery("""
+                SELECT COUNT(*)
+                FROM waitlist_entries
+                WHERE seller_id = :sellerId
+                  AND platform = 'SIMULATION'
+                  AND platform_event_id LIKE :prefix
+                  AND status = 'WAITING'
+                """)
+                    .setParameter(
+                            "sellerId",
+                            testData.sellerId()
+                    )
+                    .setParameter(
+                            "prefix",
+                            "SIM_EVENT_"
+                                    + testData.sessionId()
+                                    + "_%"
+                    )
+                    .getSingleResult();
+
             long proofCount = 0L;
 
             if (orders.size() == 1) {
@@ -203,6 +224,7 @@ class ConcurrencyTest {
                     orders,
                     finalItem.getAvailableStock(),
                     processedCount.longValue(),
+                    waitlistCount.longValue(),
                     proofCount
             );
         });
@@ -229,9 +251,22 @@ class ConcurrencyTest {
         assertThat(verification.availableStock()).isZero();
         assertThat(verification.availableStock()).isGreaterThanOrEqualTo(0);
 
+        long expectedProcessedEvents =
+                successfulReservations.get()
+                        + outOfStockRejections.get();
+
         assertThat(verification.processedEventCount())
-                .as("Only the successfully committed reservation is marked processed")
-                .isEqualTo(1L);
+                .as(
+                        "Reservations and waitlist entries are committed as processed events"
+                )
+                .isEqualTo(expectedProcessedEvents);
+
+        assertThat(verification.waitlistCount())
+                .as(
+                        "Every committed out-of-stock buyer enters the waitlist exactly once"
+                )
+                .isEqualTo(outOfStockRejections.get());
+
         assertThat(verification.proofCount()).isEqualTo(1L);
     }
 
@@ -246,6 +281,7 @@ class ConcurrencyTest {
             List<Order> orders,
             int availableStock,
             long processedEventCount,
+            long waitlistCount,
             long proofCount
     ) {
     }

@@ -17,7 +17,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 @SpringBootTest
 class ReservationRetryIdempotencyTest {
 
@@ -33,6 +32,7 @@ class ReservationRetryIdempotencyTest {
     @Test
     void retryableFailureDoesNotPermanentlyConsumePlatformEvent() {
         String platform = "SIMULATION";
+
         String platformEventId =
                 "RETRYABLE_EVENT_" + UUID.randomUUID();
 
@@ -57,13 +57,23 @@ class ReservationRetryIdempotencyTest {
                 1
         );
 
-        when(transactionExecutor.execute(intent, inventoryItemId))
+        ReservationOutcome successfulOutcome =
+                ReservationOutcome.reserved(
+                        successfulRetry
+                );
+
+        when(transactionExecutor.execute(
+                platform,
+                platformEventId,
+                intent,
+                inventoryItemId
+        ))
                 .thenThrow(
                         new ReservationContendedException(
                                 "Temporary lock contention"
                         )
                 )
-                .thenReturn(successfulRetry);
+                .thenReturn(successfulOutcome);
 
         assertThatThrownBy(() ->
                 reservationEngine.reserve(
@@ -72,23 +82,35 @@ class ReservationRetryIdempotencyTest {
                         intent,
                         inventoryItemId
                 )
-        ).isInstanceOf(ReservationContendedException.class);
-
-        Optional<Order> retryResult = reservationEngine.reserve(
-                platform,
-                platformEventId,
-                intent,
-                inventoryItemId
+        ).isInstanceOf(
+                ReservationContendedException.class
         );
 
+        Optional<Order> retryResult =
+                reservationEngine.reserve(
+                        platform,
+                        platformEventId,
+                        intent,
+                        inventoryItemId
+                );
+
         assertThat(retryResult)
-                .as("A retryable failure must not permanently consume the event")
+                .as(
+                        "A retryable failure must not permanently consume the event"
+                )
                 .contains(successfulRetry);
 
         verify(transactionExecutor, times(2))
-                .execute(intent, inventoryItemId);
+                .execute(
+                        platform,
+                        platformEventId,
+                        intent,
+                        inventoryItemId
+                );
 
         verify(reservationEventPublisher, times(1))
-                .publishReservationCreated(successfulRetry);
+                .publishReservationCreated(
+                        successfulRetry
+                );
     }
 }
