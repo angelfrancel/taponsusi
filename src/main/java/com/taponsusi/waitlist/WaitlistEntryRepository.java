@@ -1,8 +1,6 @@
 package com.taponsusi.waitlist;
 
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,16 +21,20 @@ public interface WaitlistEntryRepository
             Long inventoryItemId
     );
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            SELECT entry
-            FROM WaitlistEntry entry
-            WHERE entry.sellerId = :sellerId
-              AND entry.inventoryItemId = :inventoryItemId
-              AND entry.status = com.taponsusi.waitlist.WaitlistStatus.WAITING
-            ORDER BY entry.sourceCreatedAt ASC, entry.id ASC
-            """)
-    List<WaitlistEntry> findWaitingForPromotion(
+    @Query(
+            value = """
+                    SELECT *
+                    FROM waitlist_entries
+                    WHERE seller_id = :sellerId
+                      AND inventory_item_id = :inventoryItemId
+                      AND status = 'WAITING'
+                    ORDER BY source_created_at ASC, id ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                    """,
+            nativeQuery = true
+    )
+    Optional<WaitlistEntry> findNextWaitingForUpdate(
             @Param("sellerId") Long sellerId,
             @Param("inventoryItemId") Long inventoryItemId
     );

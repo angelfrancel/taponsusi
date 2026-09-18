@@ -75,6 +75,9 @@ public class WaitlistEntry {
     @Column(name = "offer_expires_at")
     private Instant offerExpiresAt;
 
+    @Column(name = "offered_quantity")
+    private Integer offeredQuantity;
+
     @Column(name = "promoted_order_id")
     private Long promotedOrderId;
 
@@ -181,6 +184,10 @@ public class WaitlistEntry {
         return offerExpiresAt;
     }
 
+    public Integer getOfferedQuantity() {
+        return offeredQuantity;
+    }
+
     public Long getPromotedOrderId() {
         return promotedOrderId;
     }
@@ -195,11 +202,34 @@ public class WaitlistEntry {
 
     void markOffered(
             Instant offeredAt,
-            Instant offerExpiresAt
+            Instant offerExpiresAt,
+            Integer offeredQuantity
     ) {
+        if (offeredAt == null) {
+            throw new IllegalArgumentException(
+                    "Offer time is required"
+            );
+        }
+
+        if (offerExpiresAt == null
+                || !offerExpiresAt.isAfter(offeredAt)) {
+            throw new IllegalArgumentException(
+                    "Offer expiration must be after the offer time"
+            );
+        }
+
+        if (offeredQuantity == null
+                || offeredQuantity <= 0
+                || offeredQuantity > requestedQuantity) {
+            throw new IllegalArgumentException(
+                    "Offered quantity must be positive and cannot exceed requested quantity"
+            );
+        }
+
         this.status = WaitlistStatus.OFFERED;
         this.offeredAt = offeredAt;
         this.offerExpiresAt = offerExpiresAt;
+        this.offeredQuantity = offeredQuantity;
     }
 
     void markPromoted(Long promotedOrderId) {
