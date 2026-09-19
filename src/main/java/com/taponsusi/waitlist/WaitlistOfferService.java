@@ -3,6 +3,7 @@ package com.taponsusi.waitlist;
 import com.taponsusi.common.exception.ResourceNotFoundException;
 import com.taponsusi.inventory.InventoryItem;
 import com.taponsusi.security.TenantContext;
+import com.taponsusi.messaging.OutboundMessageService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
@@ -21,6 +22,7 @@ public class WaitlistOfferService {
     private final WaitlistStateMachine stateMachine;
     private final TenantContext tenantContext;
     private final long offerWindowMinutes;
+    private final OutboundMessageService outboundMessageService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -30,12 +32,13 @@ public class WaitlistOfferService {
             WaitlistStateMachine stateMachine,
             TenantContext tenantContext,
             @Value("${taponsusi.waitlist.offer-window-minutes:10}")
-            long offerWindowMinutes
+            long offerWindowMinutes, OutboundMessageService outboundMessageService
     ) {
         this.waitlistEntryRepository = waitlistEntryRepository;
         this.stateMachine = stateMachine;
         this.tenantContext = tenantContext;
         this.offerWindowMinutes = offerWindowMinutes;
+        this.outboundMessageService = outboundMessageService;
     }
 
     @Transactional
@@ -140,6 +143,10 @@ public class WaitlistOfferService {
                 offeredAt,
                 offerExpiresAt,
                 offeredQuantity
+        );
+
+        outboundMessageService.enqueueWaitlistOffer(
+                entry
         );
 
         return Optional.of(entry);

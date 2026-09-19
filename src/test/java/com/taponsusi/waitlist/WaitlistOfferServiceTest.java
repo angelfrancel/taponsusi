@@ -2,6 +2,7 @@ package com.taponsusi.waitlist;
 
 import com.taponsusi.inventory.InventoryItem;
 import com.taponsusi.security.TenantContext;
+import com.taponsusi.messaging.OutboundMessageService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ class WaitlistOfferServiceTest {
     private TenantContext tenantContext;
     private EntityManager entityManager;
     private WaitlistOfferService service;
+    private OutboundMessageService outboundMessageService;
 
     @BeforeEach
     void setUp() {
@@ -35,12 +37,15 @@ class WaitlistOfferServiceTest {
 
         tenantContext = mock(TenantContext.class);
         entityManager = mock(EntityManager.class);
+        outboundMessageService =
+                mock(OutboundMessageService.class);
 
         service = new WaitlistOfferService(
                 waitlistEntryRepository,
                 new WaitlistStateMachine(),
                 tenantContext,
-                10
+                10,
+                outboundMessageService
         );
 
         ReflectionTestUtils.setField(
@@ -115,6 +120,9 @@ class WaitlistOfferServiceTest {
                 INVENTORY_ITEM_ID,
                 LockModeType.PESSIMISTIC_WRITE
         );
+
+        verify(outboundMessageService)
+                .enqueueWaitlistOffer(entry);
     }
 
     @Test
@@ -139,6 +147,13 @@ class WaitlistOfferServiceTest {
                 .findNextWaitingForUpdate(
                         SELLER_ID,
                         INVENTORY_ITEM_ID
+                );
+
+        verify(outboundMessageService, never())
+                .enqueueWaitlistOffer(
+                        org.mockito.ArgumentMatchers.any(
+                                WaitlistEntry.class
+                        )
                 );
     }
 
@@ -174,6 +189,13 @@ class WaitlistOfferServiceTest {
                 .findNextWaitingForUpdate(
                         SELLER_ID,
                         INVENTORY_ITEM_ID
+                );
+
+        verify(outboundMessageService, never())
+                .enqueueWaitlistOffer(
+                        org.mockito.ArgumentMatchers.any(
+                                WaitlistEntry.class
+                        )
                 );
     }
 
