@@ -15,6 +15,12 @@ public interface WaitlistEntryRepository
             String platformEventId
     );
 
+    boolean existsBySellerIdAndInventoryItemIdAndStatus(
+            Long sellerId,
+            Long inventoryItemId,
+            WaitlistStatus status
+    );
+
     List<WaitlistEntry>
     findAllBySellerIdAndInventoryItemIdOrderBySourceCreatedAtAscIdAsc(
             Long sellerId,

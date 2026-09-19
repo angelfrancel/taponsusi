@@ -33,13 +33,19 @@ taponsusi:
   jwt:
     secret: ${JWT_SECRET:change-this-in-env-CHANGE-THIS-IN-ENV-1234567890}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
   reservation:
     lock-timeout-ms: 2000
     window-minutes: 60
     safety-net-hours: 24
+
+  waitlist:
+    offer-window-minutes: 10
+
   facebook:
     app-secret: ${FACEBOOK_APP_SECRET:dev-placeholder-secret-CHANGE-IN-ENV}
     webhook-verify-token: ${FACEBOOK_WEBHOOK_VERIFY_TOKEN:dev-placeholder-token-CHANGE-IN-ENV}
+
   email:
     sendgrid-api-key: ${SENDGRID_API_KEY:dev-placeholder-sendgrid-key-CHANGE-IN-ENV}
     from-address: ${EMAIL_FROM_ADDRESS:noreply@taponsusi.dev}
