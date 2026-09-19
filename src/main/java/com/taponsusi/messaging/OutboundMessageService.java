@@ -7,6 +7,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 public class OutboundMessageService {
@@ -15,17 +16,20 @@ public class OutboundMessageService {
             outboundMessageRepository;
 
     private final TenantContext tenantContext;
+    private final ApplicationEventPublisher eventPublisher;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     public OutboundMessageService(
             OutboundMessageRepository outboundMessageRepository,
-            TenantContext tenantContext
+            TenantContext tenantContext,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.outboundMessageRepository =
                 outboundMessageRepository;
         this.tenantContext = tenantContext;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -105,18 +109,28 @@ public class OutboundMessageService {
                 )
                 .executeUpdate();
 
-        return outboundMessageRepository
-                .findBySellerIdAndIdempotencyKey(
-                        entry.getSellerId(),
-                        idempotencyKey
-                )
-                .orElseThrow(() ->
-                        new IllegalStateException(
-                                "Outbound message was not available "
-                                        + "after enqueue: "
-                                        + idempotencyKey
+        OutboundMessage message =
+                outboundMessageRepository
+                        .findBySellerIdAndIdempotencyKey(
+                                entry.getSellerId(),
+                                idempotencyKey
                         )
-                );
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Outbound message was not available "
+                                                + "after enqueue: "
+                                                + idempotencyKey
+                                )
+                        );
+
+        eventPublisher.publishEvent(
+                new OutboundMessageQueuedEvent(
+                        entry.getSellerId(),
+                        message.getId()
+                )
+        );
+
+        return message;
     }
 
     private void validateOfferedEntry(
