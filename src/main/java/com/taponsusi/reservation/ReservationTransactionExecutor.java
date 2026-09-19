@@ -120,7 +120,7 @@ public class ReservationTransactionExecutor {
                     platform,
                     platformEventId,
                     intent.platformUserId(),
-                    intent.quantity(),
+                    newPortionRequested,
                     intent.sourceCreatedAt()
             ).orElseThrow(() ->
                     new IllegalStateException(

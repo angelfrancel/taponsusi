@@ -45,6 +45,23 @@ public interface WaitlistEntryRepository
             @Param("inventoryItemId") Long inventoryItemId
     );
 
+    @Query(
+            value = """
+                SELECT *
+                FROM waitlist_entries
+                WHERE id = :waitlistEntryId
+                  AND seller_id = :sellerId
+                  AND inventory_item_id = :inventoryItemId
+                FOR UPDATE
+                """,
+            nativeQuery = true
+    )
+    Optional<WaitlistEntry> findByIdForPromotion(
+            @Param("waitlistEntryId") Long waitlistEntryId,
+            @Param("sellerId") Long sellerId,
+            @Param("inventoryItemId") Long inventoryItemId
+    );
+
     Optional<WaitlistEntry> findByIdAndSellerId(
             Long id,
             Long sellerId
