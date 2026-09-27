@@ -26,14 +26,21 @@ public interface OutboundMessageRepository
             OutboundMessageStatus status
     );
 
+    List<OutboundMessage>
+    findTop50BySellerIdAndStatusInAndAttemptCountLessThanOrderByCreatedAtAscIdAsc(
+            Long sellerId,
+            List<OutboundMessageStatus> statuses,
+            Integer maximumAttempts
+    );
+
     @Query(
             value = """
-                SELECT *
-                FROM outbound_messages
-                WHERE id = :messageId
-                  AND seller_id = :sellerId
-                FOR UPDATE
-                """,
+                    SELECT *
+                    FROM outbound_messages
+                    WHERE id = :messageId
+                      AND seller_id = :sellerId
+                    FOR UPDATE
+                    """,
             nativeQuery = true
     )
     Optional<OutboundMessage> findByIdForDelivery(

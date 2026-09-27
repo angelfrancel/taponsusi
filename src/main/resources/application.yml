@@ -42,6 +42,10 @@ taponsusi:
   waitlist:
     offer-window-minutes: 10
 
+  messaging:
+    retry-delay-ms: 300000
+    maximum-attempts: 5
+
   facebook:
     app-secret: ${FACEBOOK_APP_SECRET:dev-placeholder-secret-CHANGE-IN-ENV}
     webhook-verify-token: ${FACEBOOK_WEBHOOK_VERIFY_TOKEN:dev-placeholder-token-CHANGE-IN-ENV}
