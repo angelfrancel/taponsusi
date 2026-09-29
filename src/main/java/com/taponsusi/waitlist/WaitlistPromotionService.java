@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -27,6 +28,7 @@ public class WaitlistPromotionService {
     private final ReservationProofService reservationProofService;
     private final AuditService auditService;
     private final long reservationWindowMinutes;
+    private final Clock clock;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -39,7 +41,8 @@ public class WaitlistPromotionService {
             ReservationProofService reservationProofService,
             AuditService auditService,
             @Value("${taponsusi.reservation.window-minutes}")
-            long reservationWindowMinutes
+            long reservationWindowMinutes,
+            Clock clock
     ) {
         this.waitlistEntryRepository =
                 waitlistEntryRepository;
@@ -51,6 +54,7 @@ public class WaitlistPromotionService {
         this.auditService = auditService;
         this.reservationWindowMinutes =
                 reservationWindowMinutes;
+        this.clock = clock;
     }
 
     @Transactional
@@ -118,7 +122,7 @@ public class WaitlistPromotionService {
             );
         }
 
-        Instant acceptedAt = Instant.now();
+        Instant acceptedAt = clock.instant();
 
         if (entry.getOfferExpiresAt() == null
                 || !entry.getOfferExpiresAt()
