@@ -10,6 +10,7 @@ import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -21,6 +22,7 @@ public class WaitlistResolutionService {
     private final WaitlistOfferService waitlistOfferService;
     private final TenantContext tenantContext;
     private final AuditService auditService;
+    private final Clock clock;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -30,7 +32,8 @@ public class WaitlistResolutionService {
             WaitlistStateMachine stateMachine,
             WaitlistOfferService waitlistOfferService,
             TenantContext tenantContext,
-            AuditService auditService
+            AuditService auditService,
+            Clock clock
     ) {
         this.waitlistEntryRepository =
                 waitlistEntryRepository;
@@ -39,6 +42,7 @@ public class WaitlistResolutionService {
                 waitlistOfferService;
         this.tenantContext = tenantContext;
         this.auditService = auditService;
+        this.clock = clock;
     }
 
     @Transactional
@@ -132,7 +136,7 @@ public class WaitlistResolutionService {
         );
 
         WaitlistEntry entry = context.entry();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
 
         if (entry.getOfferExpiresAt() == null
                 || entry.getOfferExpiresAt().isAfter(now)) {

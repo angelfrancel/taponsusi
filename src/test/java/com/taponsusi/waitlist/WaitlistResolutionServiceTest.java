@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -51,7 +52,8 @@ class WaitlistResolutionServiceTest {
                 new WaitlistStateMachine(),
                 waitlistOfferService,
                 tenantContext,
-                auditService
+                auditService,
+                Clock.systemUTC()
         );
 
         ReflectionTestUtils.setField(

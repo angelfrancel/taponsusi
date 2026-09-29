@@ -41,6 +41,7 @@ taponsusi:
 
   waitlist:
     offer-window-minutes: 10
+    expiration-check-delay-ms: ${WAITLIST_EXPIRATION_CHECK_DELAY_MS:300000}
 
   messaging:
     retry-delay-ms: 300000
