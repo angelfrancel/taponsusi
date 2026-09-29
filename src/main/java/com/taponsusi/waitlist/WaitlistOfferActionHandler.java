@@ -87,7 +87,8 @@ public class WaitlistOfferActionHandler {
         if (!entry.getBuyerPlatformId()
                 .equals(buyerPlatformId.trim())) {
             throw new WaitlistOfferNotAcceptableException(
-                    "The responding buyer does not own this offer"
+                    "The responding buyer does not own this offer",
+                    WaitlistOfferNotAcceptableException.Reason.WRONG_BUYER
             );
         }
 

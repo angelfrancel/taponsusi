@@ -199,6 +199,10 @@ class WaitlistOfferActionHandlerTest {
                 .isInstanceOf(
                         WaitlistOfferNotAcceptableException.class
                 )
+                .hasFieldOrPropertyWithValue(
+                        "reason",
+                        WaitlistOfferNotAcceptableException.Reason.WRONG_BUYER
+                )
                 .hasMessageContaining(
                         "does not own this offer"
                 );
