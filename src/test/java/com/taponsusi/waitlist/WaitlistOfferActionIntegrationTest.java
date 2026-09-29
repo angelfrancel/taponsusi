@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 class WaitlistOfferActionIntegrationTest {
@@ -118,6 +119,108 @@ class WaitlistOfferActionIntegrationTest {
                 );
 
         assertThat(order.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void declineButtonReleasesHeldStockWithoutCreatingOrder() {
+        TestFixture fixture = createFixture();
+        WaitlistEntry offeredEntry = waitlistOfferService.offerNext(
+                fixture.sellerId(), fixture.inventoryItemId()
+        ).orElseThrow();
+
+        WaitlistOfferActionResult result = actionHandler.handle(
+                fixture.sellerId(),
+                fixture.buyerPlatformId(),
+                actionPayload.createDeclinePayload(offeredEntry.getId())
+        ).orElseThrow();
+
+        assertThat(result.action()).isEqualTo(WaitlistOfferActionType.DECLINE);
+        assertThat(result.waitlistEntryId()).isEqualTo(offeredEntry.getId());
+        assertThat(result.createdOrderId()).isNull();
+
+        PersistedState state = loadState(fixture, offeredEntry.getId());
+        assertThat(state.waitlistStatus()).isEqualTo(WaitlistStatus.DECLINED);
+        assertThat(state.availableStock()).isEqualTo(1);
+        assertThat(state.promotedOrderId()).isNull();
+        assertThat(state.orders()).isEmpty();
+    }
+
+    @Test
+    void differentBuyerCannotAcceptOfferedStock() {
+        assertWrongBuyerCannotAct(true);
+    }
+
+    @Test
+    void differentBuyerCannotDeclineOfferedStock() {
+        assertWrongBuyerCannotAct(false);
+    }
+
+    @Test
+    void repeatedAcceptKeepsOneOrderAndOneStockDeduction() {
+        TestFixture fixture = createFixture();
+        WaitlistEntry offeredEntry = waitlistOfferService.offerNext(
+                fixture.sellerId(), fixture.inventoryItemId()
+        ).orElseThrow();
+        String payload = actionPayload.createAcceptPayload(offeredEntry.getId());
+
+        WaitlistOfferActionResult firstResult = actionHandler.handle(
+                fixture.sellerId(), fixture.buyerPlatformId(), payload
+        ).orElseThrow();
+
+        assertThatThrownBy(() -> actionHandler.handle(
+                fixture.sellerId(), fixture.buyerPlatformId(), payload
+        )).isInstanceOf(WaitlistOfferNotAcceptableException.class);
+
+        PersistedState state = loadState(fixture, offeredEntry.getId());
+        assertThat(state.waitlistStatus()).isEqualTo(WaitlistStatus.PROMOTED);
+        assertThat(state.availableStock()).isZero();
+        assertThat(state.orders()).hasSize(1);
+        assertThat(state.promotedOrderId()).isEqualTo(firstResult.createdOrderId());
+        assertThat(state.orders().getFirst().getId())
+                .isEqualTo(state.promotedOrderId());
+    }
+
+    @Test
+    void repeatedDeclineReleasesHeldStockOnlyOnce() {
+        TestFixture fixture = createFixture();
+        WaitlistEntry offeredEntry = waitlistOfferService.offerNext(
+                fixture.sellerId(), fixture.inventoryItemId()
+        ).orElseThrow();
+        String payload = actionPayload.createDeclinePayload(offeredEntry.getId());
+
+        actionHandler.handle(
+                fixture.sellerId(), fixture.buyerPlatformId(), payload
+        ).orElseThrow();
+
+        assertThatThrownBy(() -> actionHandler.handle(
+                fixture.sellerId(), fixture.buyerPlatformId(), payload
+        )).isInstanceOf(WaitlistOfferNotAcceptableException.class);
+
+        PersistedState state = loadState(fixture, offeredEntry.getId());
+        assertThat(state.waitlistStatus()).isEqualTo(WaitlistStatus.DECLINED);
+        assertThat(state.availableStock()).isEqualTo(1);
+        assertThat(state.promotedOrderId()).isNull();
+        assertThat(state.orders()).isEmpty();
+    }
+
+    private void assertWrongBuyerCannotAct(boolean accept) {
+        TestFixture fixture = createFixture();
+        WaitlistEntry offeredEntry = waitlistOfferService.offerNext(
+                fixture.sellerId(), fixture.inventoryItemId()
+        ).orElseThrow();
+        String payload = accept
+                ? actionPayload.createAcceptPayload(offeredEntry.getId())
+                : actionPayload.createDeclinePayload(offeredEntry.getId());
+
+        assertThatThrownBy(() -> actionHandler.handle(
+                fixture.sellerId(), "another-buyer-" + UUID.randomUUID(), payload
+        )).isInstanceOf(WaitlistOfferNotAcceptableException.class);
+
+        PersistedState state = loadState(fixture, offeredEntry.getId());
+        assertThat(state.waitlistStatus()).isEqualTo(WaitlistStatus.OFFERED);
+        assertThat(state.availableStock()).isZero();
+        assertThat(state.promotedOrderId()).isNull();
+        assertThat(state.orders()).isEmpty();
     }
 
     private TestFixture createFixture() {
