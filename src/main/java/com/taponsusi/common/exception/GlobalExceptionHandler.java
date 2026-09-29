@@ -6,12 +6,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.taponsusi.inventory.InvalidReservationCodeException;
 import com.taponsusi.reservation.SessionNotLiveException;
+import com.taponsusi.waitlist.WaitlistOfferNotAcceptableException;
 
 import java.util.stream.Collectors;
 
@@ -23,6 +25,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error("RESOURCE_NOT_FOUND", ex.getMessage()));
+    }
+
+    @ExceptionHandler(WaitlistOfferNotAcceptableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleWaitlistOfferNotAcceptable(
+            WaitlistOfferNotAcceptableException ex
+    ) {
+        boolean wrongBuyer = ex.getReason()
+                == WaitlistOfferNotAcceptableException.Reason.WRONG_BUYER;
+
+        return ResponseEntity.status(
+                        wrongBuyer ? HttpStatus.FORBIDDEN : HttpStatus.CONFLICT
+                )
+                .body(ApiResponse.error(
+                        wrongBuyer
+                                ? "WAITLIST_BUYER_MISMATCH"
+                                : "WAITLIST_OFFER_NOT_ACCEPTABLE",
+                        ex.getMessage()
+                ));
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
@@ -44,6 +64,17 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("VALIDATION_FAILED", message));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableRequest(
+            HttpMessageNotReadableException ex
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(
+                        "INVALID_REQUEST_BODY",
+                        "Request body must be valid JSON"
+                ));
     }
 
     @ExceptionHandler(InvalidReservationCodeException.class)
